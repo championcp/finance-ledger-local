@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>家庭理财台账 · 本地版</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --ink:#1f2430; --sub:#6b7280; --line:#e5e7eb;
+  --brand:#2563eb; --brand-d:#1d4ed8; --up:#d92d20; --down:#079455; --warn:#dc6803;
+  --chip:#eef2ff; --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+.wrap{max-width:1080px;margin:0 auto;padding:16px}
+.appbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff}
+.appbar h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px}
+.appbar .sync{font-size:12px;opacity:.92;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#86efac;display:inline-block}
+.grid{display:grid;gap:14px}
+.cards{grid-template-columns:repeat(3,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.stat .lbl{color:var(--sub);font-size:13px}
+.stat .val{font-size:24px;font-weight:750;margin-top:4px;letter-spacing:.3px}
+.stat .val.asset{color:var(--up)}
+.stat .val.debt{color:var(--down)}
+.stat .val.net{color:var(--brand)}
+.cur{display:inline-block;padding:2px 7px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:11px;font-weight:600}
+.cur.foreign{background:#fef3c7;color:#b45309}
+.section-title{font-size:16px;font-weight:700;margin:20px 2px 10px;display:flex;align-items:center;gap:8px}
+.section-title .bar{width:4px;height:18px;background:var(--brand);border-radius:2px}
+.section-title .sub{font-size:12px;color:var(--sub);font-weight:400;margin-left:6px}
+.panel{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+.binding{color:var(--sub);font-size:13px}
+.remind{border-left:3px solid var(--warn);padding:8px 12px;background:#fff8f1;border-radius:6px;margin-top:8px;font-size:13px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.btn{border:0;border-radius:10px;padding:10px 16px;font-size:14px;cursor:pointer;min-height:44px;font-weight:600}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-d)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.mini{padding:6px 10px;min-height:34px;font-size:13px}
+.btn.txn{background:#eef2ff;color:var(--brand-d)}
+.btn.danger{background:#fee4e2;color:var(--up)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--sub);font-weight:600;background:#fafbfc;position:sticky;top:0}
+td.num,th.num{text-align:right}
+.scroll{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:10px}
+tr.rowclick{cursor:pointer}
+tr.rowclick:hover{background:#f8fafc}
+tr.rowclick.open{background:#eef4ff}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.field label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
+.field input,.field select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff;color:var(--ink)}
+.field select{width:auto;max-width:100%}
+.hint{font-size:12px;color:var(--sub);margin-top:8px}
+.empty{padding:36px;text-align:center;color:var(--sub)}
+.advice{background:linear-gradient(135deg,#f0f5ff,#faf5ff);border:1px solid #dbe4ff;margin-top:14px}
+.advice h3{margin:0 0 10px;font-size:15px}
+.advice ul{margin:8px 0;padding-left:20px}
+.advice li{margin:6px 0}
+.detail{background:#f8fafc;border-top:2px solid var(--brand);padding:0}
+.detail-inner{padding:14px 16px}
+.detail h4{margin:14px 0 8px;font-size:13px;color:var(--brand-d)}
+.detail table{font-size:12px;background:#fff;border-radius:8px;overflow:hidden}
+.detail th{position:static}
+.mask{position:fixed;inset:0;background:rgba(16,24,40,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.mask.show{display:flex}
+.modal{background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,.2);max-height:90vh;overflow:auto}
+.modal h3{margin:0 0 12px}
+.modal .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.foot{color:var(--sub);font-size:12px;text-align:center;margin-top:26px;line-height:1.7}
+.money-up{color:var(--up)}
+.money-down{color:var(--down)}
+@media(max-width:768px){
+  .cards{grid-template-columns:1fr}
+  .panel{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr 1fr}
+  .stat .val{font-size:21px}
+  .wrap{padding:12px}
+  .scroll{max-height:none}
+}
+</style>
+</head>
+<body>
+<div class="appbar">
+  <h1>家庭理财台账 · 本地版</h1>
+  <div class="sync"><span class="dot" id="syncDot"></span><span id="syncText">连接中…</span></div>
+</div>
+<div class="wrap">
+  <div class="grid cards">
+    <div class="card stat"><div class="lbl">总资产（折合¥）</div><div class="val asset binding" id="statAsset">¥0</div></div>
+    <div class="card stat"><div class="lbl">总负债（折合¥）</div><div class="val debt binding" id="statDebt">¥0</div></div>
+    <div class="card stat"><div class="lbl">净资产（折合¥）</div><div class="val net binding" id="statNet">¥0</div></div>
+  </div>
+
+  <div class="panel" style="margin-top:14px">
+    <div class="card">
+      <div class="section-title" style="margin-top:0"><span class="bar"></span>资产配置</div>
+      <div id="pieBox"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0"><span class="bar"></span>到期提醒</div>
+      <div id="remindBox" class="binding">加载中…</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="section-title" style="margin-top:0"><span class="bar"></span>资产走势</div>
+    <div id="trendBox"><div class="empty">加载中…</div></div>
+  </div>
+
+  <div class="card advice binding" style="margin-top:14px">
+    <h3>理财结构体检（自动）</h3>
+    <div id="adviceBox">加载中…</div>
+    <div class="hint">基于结构规则的提示，不构成具体投资建议。想要更深入的分析，把这份数据告诉你的 AI 助手即可。</div>
+  </div>
+
+  <!-- 唯一登记入口 -->
+  <div class="section-title"><span class="bar"></span>我的理财 <span class="sub">只在这里登记，历史自动记录 · 点一行看它的来龙去脉</span></div>
+  <div class="card" style="background:linear-gradient(135deg,#f0f7ff,#faf5ff);border-color:#d5e5ff;margin-bottom:14px">
+    <div style="font-weight:700;margin-bottom:8px">净值自动跟踪 · 每笔理财产品需要登记这些信息</div>
+    <div style="font-size:13px;line-height:1.9;color:#374151">
+      <b>① 净值代码</b>：产品管理公司官网的份额代码（中银理财可在 bocwm.cn 查；不知道就填银行 App 里的销售代码，如 <code>ZYD3202A</code>）。<br>
+      <b>② 持有份额</b>：银行 App 该产品持仓详情页的"持有份额"，只需登记一次。<br>
+      <b>③ 最新净值</b>：本机每天自动抓取官网净值并写入，无需你操作；市值 = 份额 × 净值，系统自动算。<br>
+      <b>④ 货币种类 / 到期日 / 购买日</b>：照实填，用于折合人民币和到期提醒。
+    </div>
+    <div class="hint" style="margin-top:8px">存款、大额存单等余额固定的产品不用填份额和净值，直接填当前金额即可。</div>
+  </div>
+  <div class="card">
+    <div class="toolbar">
+      <button class="btn primary" id="addAssetBtn"><span class="ic">＋</span>新增一笔</button>
+      <button class="btn ghost" id="refreshNavBtn">⟳ 刷新净值</button>
+      <button class="btn ghost" id="rateBtn">汇率设置</button>
+      <button class="btn ghost" id="clearDemoBtn">清空示例</button>
+      <span class="hint" style="margin-left:auto">负债请填剩余本金（正数）</span>
+    </div>
+    <form id="assetForm" class="form-grid" style="display:none;margin-bottom:14px;padding:14px;background:#fafbfc;border-radius:10px"></form>
+    <div class="scroll"><table id="assetTable"><thead><tr>
+      <th>名称 / 产品</th><th>分类</th><th>币种</th><th>购买日</th><th class="num">投入本金</th><th class="num">份额</th><th class="num">最新净值</th><th class="num">当前金额</th><th class="num">折合¥</th><th class="num">收益(¥)</th><th>到期日</th><th>操作</th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+
+  <div class="foot">
+    数据只保存在这台 Mac 本机，不上传任何云端，服务仅监听 127.0.0.1，手机与外网无法访问。<br>
+    备份方式：复制 data/finance.db 即可。只需在「我的理财」登记，流水、留痕、市值快照均自动维护。敏感信息建议脱敏填写。
+  </div>
+</div>
+
+<!-- 记一笔弹窗 -->
+<div class="mask" id="txnMask">
+  <div class="modal">
+    <h3>记一笔 · <span id="txnAssetName"></span></h3>
+    <div class="hint" style="margin-bottom:12px">选择类型并填金额，系统会自动更新这笔的当前金额，并记入流水与留痕。</div>
+    <form id="txnForm" class="form-grid"></form>
+    <div class="acts">
+      <button class="btn ghost" id="txnCancel">取消</button>
+      <button class="btn primary" id="txnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="mask" id="confirmMask">
+  <div class="modal">
+    <h3 id="confirmTitle">确认操作</h3>
+    <div id="confirmMsg"></div>
+    <div class="acts">
+      <button class="btn ghost" id="confirmCancel">取消</button>
+      <button class="btn danger" id="confirmOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 汇率设置弹窗 -->
+<div class="mask" id="rateMask">
+  <div class="modal">
+    <h3>汇率设置</h3>
+    <div class="hint" style="margin-bottom:12px">用于把美元、港币资产折算成人民币统计。请按实时汇率填写，保存后自动更新总览与留痕。</div>
+    <form id="rateForm" class="form-grid">
+      <div class="field"><label>美元 → 人民币</label><input name="usd" type="number" step="0.0001" placeholder="如 7.25"></div>
+      <div class="field"><label>港币 → 人民币</label><input name="hkd" type="number" step="0.0001" placeholder="如 0.93"></div>
+    </form>
+    <div class="acts">
+      <button class="btn ghost" id="rateCancel">取消</button>
+      <button class="btn primary" id="rateSave">保存汇率</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 本地数据适配器：把页面调用转发到本机 Flask 服务 */
+(function(){
+  var API='/api';
+  function post(path,body){
+    return fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})})
+      .then(function(r){return r.json();});
+  }
+  window.__LOCALDB__={
+    query:function(p){ return post('/query',{databaseId:p.databaseId}).then(function(r){return {results:r.results||[],hasMore:false};}); },
+    addRecord:function(p){ return post('/add',{databaseId:p.databaseId,properties:p.properties}); },
+    updateRecord:function(p){ return post('/update',{databaseId:p.databaseId,recordId:p.recordId,properties:p.properties}); },
+    deleteRecord:function(p){ return post('/delete',{databaseId:p.databaseId,recordId:p.recordId}); },
+    onUpdated:function(cb){
+      var last=null;
+      function tick(){
+        fetch(API+'/version').then(function(r){return r.json();}).then(function(o){
+          if(last===null){ last=o.v; return; }
+          if(o.v!==last){ last=o.v; cb(); }
+        }).catch(function(){});
+      }
+      setInterval(tick,4000);
+    },
+    refreshNav:function(){ return post('/refresh-nav',{}); }
+  };
+})();
+</script>
+
+<script>
+/* 常量表 */
+var DB_ASSETS   = 'R4EP1k4l2TSnv3MWALkCiN';
+var DB_TXN      = '470rjrUP5bjKVeFfzTH0qU';
+var DB_SNAPSHOT = 'Epene6sRljkIPqp7deopV8';
+var DB_AUDIT    = 'hpr7iAwVjW4B1yUKR4Iym9';
+var DB_RATE     = 'L2XpEYpZb71srUm0Jt3fXN';
+var DATABASE_ID = DB_ASSETS;
+
+var F = {
+  aName:'名称', aCode:'产品代码型号', aCat:'分类', aOwner:'归属人', aOrg:'机构',
+  aPrincipal:'投入本金', aMarket:'当前市值余额', aUpdate:'更新日期', aDue:'到期日',
+  aStatus:'状态', aNote:'备注', aBuyDate:'购买日', aCurrency:'货币种类',
+  tDate:'日期', tType:'类型', tAsset:'关联资产', tAmount:'金额', tNote:'备注',
+  sDate:'日期', sAsset:'资产名称', sValue:'市值', sNote:'备注', sCurrency:'货币种类',
+  uTime:'时间', uTarget:'操作对象', uAction:'动作', uDetail:'变更详情', uWho:'操作人',
+  rCurrency:'币种', rRate:'兑人民币汇率', rUpdate:'更新日期'
+};
+
+var LIAB_CATS = ['房贷','车贷','信用卡欠款'];
+var CATS = ['活期','定期存款','大额存单','银行理财','货币基金','债券基金','股票基金','指数基金','股票','债券','保险理财','黄金','房产','房贷','车贷','信用卡欠款','其他'];
+var OWNERS = ['本人','配偶','家庭共用'];
+var STATUSES = ['持有中','已到期','已赎回'];
+var CURRENCIES = ['人民币','美元','港币'];
+var CUR_SYM = {'人民币':'¥', '美元':'$', '港币':'HK$'};
+var TXN_DIR = {'利息':1,'分红':1,'存入':1,'转入':1,'买入':0,'卖出':0,'取出':-1,'转出':-1,'费用':-1};
+
+var db = null;
+var STORE = { assets:[], txn:[], snapshot:[], audit:[], rate:[] };
+var DEFAULT_RATE = {'美元':7.25, '港币':0.93};
+var OPERATOR = '本人';
+var EXPANDED = null;
+
+/* 工具 */
+function rid(r){ return r ? (r._id || r.record_id || '') : ''; }
+function d10(v){ if(!v) return ''; return String(v).slice(0,10); }
+function num(v){ var n = Number(v); return isNaN(n) ? 0 : n; }
+function money(v){ var n = num(v); return '¥' + n.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function rateOf(cur){
+  if(cur==='人民币' || !cur) return 1;
+  var hit = STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)===cur; })[0];
+  if(hit){ var v=num(hit[F.rRate]); return v>0?v:(DEFAULT_RATE[cur]||1); }
+  return DEFAULT_RATE[cur]||1;
+}
+function toCNY(v, cur){ return num(v) * rateOf(cur); }
+function fmtMoney(v, cur){
+  var n=num(v), sym=CUR_SYM[cur]||'¥';
+  return sym + n.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function opt(v){ return (v && typeof v==='object') ? (v.text||'') : (v==null?'':String(v)); }
+function txtOf(rec,key){ return opt(rec ? rec[key] : ''); }
+function selOf(rec,key){ return txtOf(rec,key); }
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function nowStr(){
+  var d=new Date(); function p(n){return n<10?'0'+n:''+n;}
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+function todayStr(){
+  var d=new Date(); function p(n){return n<10?'0'+n:''+n;}
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+var _confirmCb=null;
+function askConfirm(title,msg,cb){
+  document.getElementById('confirmTitle').textContent=title;
+  document.getElementById('confirmMsg').textContent=msg;
+  _confirmCb=cb; document.getElementById('confirmMask').classList.add('show');
+}
+function closeConfirm(){ document.getElementById('confirmMask').classList.remove('show'); _confirmCb=null; }
+
+var _draftTimer=null;
+function saveDraft(key,form){
+  clearTimeout(_draftTimer);
+  _draftTimer=setTimeout(function(){
+    var o={}; Array.prototype.forEach.call(form.elements,function(el){ if(el.name) o[el.name]=el.value; });
+    try{ localStorage.setItem('fin_draft_'+key, JSON.stringify(o)); }catch(e){}
+  },300);
+}
+function loadDraft(key,form){
+  var raw=null; try{ raw=localStorage.getItem('fin_draft_'+key); }catch(e){}
+  if(!raw) return;
+  try{ var o=JSON.parse(raw); Array.prototype.forEach.call(form.elements,function(el){ if(el.name && o[el.name]!==undefined) el.value=o[el.name]; }); }catch(e){}
+}
+function clearDraft(key){ try{ localStorage.removeItem('fin_draft_'+key); }catch(e){} }
+
+/* 数据层 */
+function queryAll(dbId){
+  return new Promise(function(resolve,reject){
+    var out=[], cur='', guard=0;
+    function step(){
+      if(guard++>100){ resolve(out); return; }
+      DATABASE_ID = dbId;
+      var q = cur
+        ? db.query({ databaseId: DATABASE_ID, pageSize:200, startCursor:cur })
+        : db.query({ databaseId: DATABASE_ID, pageSize:200 });
+      q.then(function(r){
+        var list=(r && r.results) ? r.results : [];
+        out=out.concat(list);
+        if(r && r.hasMore && r.nextCursor){ cur=r.nextCursor; step(); }
+        else resolve(out);
+      }).catch(function(e){ reject(e); });
+    }
+    step();
+  });
+}
+function loadAll(){
+  if(!db) return Promise.resolve();
+  return Promise.all([
+    queryAll(DB_ASSETS), queryAll(DB_TXN), queryAll(DB_SNAPSHOT),
+    queryAll(DB_AUDIT), queryAll(DB_RATE)
+  ]).then(function(rs){ STORE.assets=rs[0]; STORE.txn=rs[1]; STORE.snapshot=rs[2]; STORE.audit=rs[3]; STORE.rate=rs[4]; });
+}
+
+/* 写入层：所有写操作自动留痕 */
+function audit(action, target, detail){
+  if(!db) return Promise.resolve();
+  var pv={};
+  pv[F.uTime]={text:nowStr()};
+  pv[F.uTarget]={text:target};
+  pv[F.uAction]={select:action};
+  pv[F.uDetail]={text:detail};
+  pv[F.uWho]={text:OPERATOR};
+  DATABASE_ID=DB_AUDIT;
+  return db.addRecord({ databaseId: DATABASE_ID, properties:pv }).catch(function(){});
+}
+function snapshot(assetName, value, currency){
+  if(!db) return Promise.resolve();
+  var pv={};
+  pv[F.sDate]={date:todayStr()};
+  pv[F.sAsset]={text:assetName};
+  pv[F.sValue]={number:value};
+  pv[F.sNote]={text:'自动记录'};
+  pv[F.sCurrency]={select:currency||'人民币'};
+  DATABASE_ID=DB_SNAPSHOT;
+  return db.addRecord({ databaseId: DATABASE_ID, properties:pv }).catch(function(){});
+}
+function addRecordTo(dbId, pv, target, detail){
+  DATABASE_ID=dbId;
+  return db.addRecord({ databaseId: DATABASE_ID, properties:pv })
+    .then(function(){ return audit('新增',target,detail); });
+}
+function updateRecordIn(dbId, recId, pv, target, detail){
+  DATABASE_ID=dbId;
+  return db.updateRecord({ databaseId: DATABASE_ID, recordId:recId, properties:pv })
+    .then(function(){ return audit('修改',target,detail); });
+}
+function deleteRecordIn(dbId, recId, target, detail){
+  DATABASE_ID=dbId;
+  return db.deleteRecord({ databaseId: DATABASE_ID, recordId:recId })
+    .then(function(){ return audit('删除',target,detail); });
+}
+function saveRate(currency, rateVal){
+  var hit = STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)===currency; })[0];
+  var pv={};
+  pv[F.rCurrency]={select:currency};
+  pv[F.rRate]={number:rateVal};
+  pv[F.rUpdate]={date:todayStr()};
+  return hit
+    ? updateRecordIn(DB_RATE, rid(hit), pv, '汇率设置/'+currency, currency+' 汇率 '+num(hit[F.rRate])+' → '+rateVal)
+    : addRecordTo(DB_RATE, pv, '汇率设置/'+currency, '设置 '+currency+' 汇率 '+rateVal);
+}
+function openRate(){
+  var f=document.getElementById('rateForm');
+  var usd=STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)==='美元'; })[0];
+  var hkd=STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)==='港币'; })[0];
+  f.elements.namedItem('usd').value = usd ? num(usd[F.rRate]) : DEFAULT_RATE['美元'];
+  f.elements.namedItem('hkd').value = hkd ? num(hkd[F.rRate]) : DEFAULT_RATE['港币'];
+  document.getElementById('rateMask').classList.add('show');
+}
+function closeRate(){ document.getElementById('rateMask').classList.remove('show'); }
+function saveRates(){
+  var f=document.getElementById('rateForm');
+  var usd=num(f.elements.namedItem('usd').value);
+  var hkd=num(f.elements.namedItem('hkd').value);
+  if(usd<=0 || hkd<=0){ alert('汇率必须大于 0'); return; }
+  Promise.all([saveRate('美元',usd), saveRate('港币',hkd)])
+    .then(function(){ closeRate(); afterWrite(); })
+    .catch(function(){ setSync(false,'汇率保存失败'); });
+}
+
+/* 计算层 */
+function isLiab(cat){ return LIAB_CATS.indexOf(cat)>=0; }
+function calcTotals(){
+  var asset=0, debt=0;
+  STORE.assets.forEach(function(r){
+    var cat=selOf(r,F.aCat), mv=num(r[F.aMarket]), cur=selOf(r,F.aCurrency);
+    var cny=toCNY(mv, cur);
+    if(isLiab(cat)) debt+=Math.abs(cny); else asset+=cny;
+  });
+  return {asset:asset,debt:debt,net:asset-debt};
+}
+function catBreakdown(){
+  var m={};
+  STORE.assets.forEach(function(r){
+    var cat=selOf(r,F.aCat)||'其他';
+    if(isLiab(cat)) return;
+    var mv=toCNY(r[F.aMarket], selOf(r,F.aCurrency));
+    if(mv<=0) return;
+    m[cat]=(m[cat]||0)+mv;
+  });
+  return m;
+}
+function next30(){
+  var d=new Date(); d.setDate(d.getDate()+30);
+  function p(n){return n<10?'0'+n:''+n;}
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+function dueList(){
+  var today=todayStr(), out=[];
+  STORE.assets.forEach(function(r){
+    var due=d10(r[F.aDue]);
+    if(!due || selOf(r,F.aStatus)==='已赎回') return;
+    if(due<today) out.push({name:selOf(r,F.aName),due:due,over:true});
+    else if(due<=next30()) out.push({name:selOf(r,F.aName),due:due,over:false});
+  });
+  return out;
+}
+function trendData(){
+  var m={};
+  STORE.snapshot.forEach(function(r){
+    var d=d10(r[F.sDate]); if(!d) return;
+    m[d]=(m[d]||0)+toCNY(r[F.sValue], selOf(r,F.sCurrency));
+  });
+  return Object.keys(m).sort().map(function(d){return {d:d,v:m[d]};});
+}
+function buildAdvice(){
+  var t=calcTotals(), bd=catBreakdown(), due=dueList();
+  var out=[], totalAsset=t.asset;
+  var noCur=STORE.assets.filter(function(r){ return !selOf(r,F.aCurrency); }).length;
+  if(noCur) out.push('有 '+noCur+' 笔资产还没登记币种，暂按人民币统计。点对应行的「改」补上币种，数字才准确（尤其美元、港币产品）。');
+  var needTrack=STORE.assets.filter(function(r){ var m=navMeta(r); return (navTrack(r)||m.share) && (!m.share||!navTrack(r)); }).length;
+  if(needTrack) out.push('有 '+needTrack+' 笔净值型产品还缺「份额」或「净值代码」，每日净值速报暂时算不了它的市值。点对应行的「改」补齐即可。');
+  var staleNav=STORE.assets.filter(function(r){ var m=navMeta(r); return m.nav && m.navDate && m.navDate<d10(new Date().toISOString()); }).length;
+  if(staleNav) out.push('有 '+staleNav+' 笔产品的净值日期不是最新的，市值可能不是实时值，记得同步最新净值。');
+  var cash=(bd['活期']||0)+(bd['货币基金']||0);
+  var cashRatio= totalAsset>0 ? cash/totalAsset : 0;
+  if(totalAsset<=0){ out.push('还没有登记资产，先在「我的理财」里加一笔就能得到体检结果。'); return out; }
+  if(cashRatio<0.1) out.push('活期与货币基金约 '+(cashRatio*100).toFixed(1)+'%，低于 10% 参考线，可考虑预留应急金。');
+  else if(cashRatio>0.4) out.push('活期与货币基金约 '+(cashRatio*100).toFixed(1)+'%，偏高，闲置过多会拉低收益。');
+  else out.push('活期与货币基金约 '+(cashRatio*100).toFixed(1)+'%，处于较合理区间。');
+  var keys=Object.keys(bd);
+  if(keys.length){
+    var top=keys.sort(function(a,b){return bd[b]-bd[a];})[0];
+    var ratio= totalAsset>0 ? bd[top]/totalAsset : 0;
+    if(ratio>0.5) out.push('「'+top+'」约占 '+(ratio*100).toFixed(1)+'%，较集中，分散有助于降低单一波动。');
+    else out.push('资产分布在 '+Object.keys(bd).length+' 个类别，集中度不过高。');
+  }
+  if(t.debt>0){
+    var dr=t.asset>0? t.debt/t.asset : 0;
+    if(dr>0.6) out.push('总负债约为总资产的 '+(dr*100).toFixed(1)+'%，偿债压力偏高，关注现金流。');
+    else out.push('总负债约为总资产的 '+(dr*100).toFixed(1)+'%，处于可控范围。');
+  } else out.push('当前未登记负债。若有房贷/车贷，记得登记以查看真实净资产。');
+  if(due.length) out.push('有 '+due.length+' 笔资产临近或已过到期日，见上方「到期提醒」。');
+  return out;
+}
+
+/* 渲染层 */
+var PIE_COLORS=['#2563eb','#7c3aed','#0891b2','#059669','#d97706','#dc2626','#db2777','#4f46e5','#0d9488','#65a30d','#c2410c','#6d28d9'];
+function renderStats(){
+  var t=calcTotals();
+  document.getElementById('statAsset').textContent=money(t.asset);
+  document.getElementById('statDebt').textContent=money(t.debt);
+  document.getElementById('statNet').textContent=money(t.net);
+}
+function renderPie(){
+  var bd=catBreakdown();
+  var keys=Object.keys(bd).filter(function(k){return bd[k]>0;}).sort(function(a,b){return bd[b]-bd[a];});
+  var box=document.getElementById('pieBox');
+  var total=keys.reduce(function(s,k){return s+bd[k];},0);
+  if(!keys.length || total<=0){ box.innerHTML='<div class="empty">暂无资产数据</div>'; return; }
+  var cx=90,cy=90,r=70, a=-Math.PI/2, paths='';
+  keys.forEach(function(k,i){
+    var frac=bd[k]/total, a2=a+frac*2*Math.PI;
+    var x1=cx+r*Math.cos(a), y1=cy+r*Math.sin(a), x2=cx+r*Math.cos(a2), y2=cy+r*Math.sin(a2);
+    var large=frac>0.5?1:0;
+    if(frac>=0.9999) paths+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+PIE_COLORS[i%PIE_COLORS.length]+'"/>';
+    else paths+='<path d="M '+cx+' '+cy+' L '+x1.toFixed(2)+' '+y1.toFixed(2)+' A '+r+' '+r+' 0 '+large+' 1 '+x2.toFixed(2)+' '+y2.toFixed(2)+' Z" fill="'+PIE_COLORS[i%PIE_COLORS.length]+'"/>';
+    a=a2;
+  });
+  var legend=keys.map(function(k,i){
+    return '<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px">'+
+      '<span style="width:12px;height:12px;border-radius:3px;background:'+PIE_COLORS[i%PIE_COLORS.length]+'"></span>'+
+      '<span style="flex:1">'+esc(k)+'</span><b>'+(bd[k]/total*100).toFixed(1)+'%</b></div>';
+  }).join('');
+  box.innerHTML='<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">'+
+    '<svg width="180" height="180" viewBox="0 0 180 180">'+paths+'</svg>'+
+    '<div style="flex:1;min-width:160px">'+legend+'</div></div>';
+}
+function renderRemind(){
+  var box=document.getElementById('remindBox');
+  var due=dueList(), html='';
+  if(due.length){
+    html+='<div style="font-weight:600;margin-bottom:4px">到期 / 临期资产</div>';
+    due.forEach(function(x){ html+='<div class="remind">'+(x.over?'⚠ 已过期 ':'临近到期 ')+esc(x.name)+' · '+esc(x.due)+'</div>'; });
+  }else html+='<div class="binding">近 30 天无到期资产。</div>';
+  if(!STORE.assets.length) html+='<div class="hint">登记资产后，这里会提示到期与临期项目。</div>';
+  box.innerHTML=html;
+}
+function renderTrend(){
+  var box=document.getElementById('trendBox');
+  if(!box) return;
+  var data=trendData();
+  if(data.length<2){ box.innerHTML='<div class="empty">记录两期以上市值后显示走势（改动金额会自动记录）</div>'; return; }
+  var W=640,H=200,pad=36;
+  var vals=data.map(function(x){return x.v;});
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals);
+  if(min===max){min-=1;max+=1;}
+  var range=max-min;
+  var pts=data.map(function(x,i){
+    var px=pad + i*(W-2*pad)/(data.length-1);
+    var py=H-pad - (x.v-min)/range*(H-2*pad);
+    return [px,py,x];
+  });
+  var line=pts.map(function(p,i){return (i?'L ':'M ')+p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' ');
+  var area=line+' L '+pts[pts.length-1][0].toFixed(1)+' '+(H-pad)+' L '+pts[0][0].toFixed(1)+' '+(H-pad)+' Z';
+  var dots=pts.map(function(p){return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.5" fill="#2563eb"/>';}).join('');
+  var labels=pts.map(function(p,i){
+    if(data.length>6 && i%Math.ceil(data.length/6)!==0 && i!==data.length-1) return '';
+    return '<text x="'+p[0].toFixed(1)+'" y="'+(H-10)+'" font-size="10" text-anchor="middle" fill="#6b7280">'+esc(p[2].d.slice(5))+'</text>';
+  }).join('');
+  box.innerHTML='<svg width="100%" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
+    '<line x1="'+pad+'" y1="'+(H-pad)+'" x2="'+(W-pad)+'" y2="'+(H-pad)+'" stroke="#e5e7eb"/>'+
+    '<path d="'+area+'" fill="rgba(37,99,235,.10)"/>'+
+    '<path d="'+line+'" fill="none" stroke="#2563eb" stroke-width="2.5"/>'+dots+labels+
+    '<text x="2" y="14" font-size="10" fill="#6b7280">'+money(max)+'</text>'+
+    '<text x="2" y="'+(H-pad)+'" font-size="10" fill="#6b7280">'+money(min)+'</text></svg>';
+}
+function renderAdvice(){
+  document.getElementById('adviceBox').innerHTML='<ul>'+buildAdvice().map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>';
+}
+function detailHTML(assetName){
+  var curRec=STORE.assets.filter(function(r){ return selOf(r,F.aName)===assetName; })[0];
+  var cur=curRec ? (selOf(curRec,F.aCurrency)||'人民币') : '人民币';
+  var tx=STORE.txn.filter(function(r){ return txtOf(r,F.tAsset)===assetName; }).slice().reverse();
+  var sn=STORE.snapshot.filter(function(r){ return txtOf(r,F.sAsset)===assetName; }).slice().reverse();
+  var au=STORE.audit.filter(function(r){ return txtOf(r,F.uTarget).indexOf(assetName)>=0; }).slice().reverse();
+  var h='<div class="detail-inner">';
+  var meta=navMeta(curRec||{}), track=navTrack(curRec||{});
+  if(track || meta.share || meta.nav){
+    h+='<h4>净值跟踪</h4>';
+    h+='<div class="binding" style="line-height:1.9">'+
+      '净值代码：<b>'+esc(track||'未填')+'</b>　份额：<b>'+esc(meta.share||'未填')+'</b><br>'+
+      '最新净值：<b>'+esc(meta.nav||'未填')+'</b>　净值日期：<b>'+esc(meta.navDate||'未填')+'</b>'+
+      (num(meta.share)>0&&num(meta.nav)>0 ? '<br><span style="color:var(--brand)">自动市值 = 份额 × 净值 = '+fmtMoney(num(meta.share)*num(meta.nav),cur)+'</span>':'')+
+      '</div>';
+  }
+  h+='<h4>交易流水（'+tx.length+'）</h4>';
+  if(tx.length){
+    h+='<table><thead><tr><th>日期</th><th>类型</th><th class="num">金额</th><th>备注</th></tr></thead><tbody>';
+    tx.forEach(function(r){ h+='<tr><td>'+esc(d10(r[F.tDate]))+'</td><td>'+esc(selOf(r,F.tType))+'</td><td class="num">'+fmtMoney(r[F.tAmount],cur)+'</td><td>'+esc(txtOf(r,F.tNote))+'</td></tr>'; });
+    h+='</tbody></table>';
+  } else h+='<div class="hint">暂无流水，点「记一笔」添加。</div>';
+  h+='<h4>市值变化（'+sn.length+'）</h4>';
+  if(sn.length){
+    h+='<table><thead><tr><th>日期</th><th class="num">市值</th><th>备注</th></tr></thead><tbody>';
+    sn.forEach(function(r){ h+='<tr><td>'+esc(d10(r[F.sDate]))+'</td><td class="num">'+fmtMoney(r[F.sValue],cur)+'</td><td>'+esc(txtOf(r,F.sNote))+'</td></tr>'; });
+    h+='</tbody></table>';
+  } else h+='<div class="hint">改动当前金额会自动记录一条市值。</div>';
+  h+='<h4>操作留痕（'+au.length+'）</h4>';
+  if(au.length){
+    h+='<table><thead><tr><th>时间</th><th>动作</th><th>详情</th></tr></thead><tbody>';
+    au.forEach(function(r){ h+='<tr><td>'+esc(txtOf(r[F.uTime]))+'</td><td>'+esc(selOf(r,F.uAction))+'</td><td>'+esc(txtOf(r,F.uDetail))+'</td></tr>'; });
+    h+='</tbody></table>';
+  } else h+='<div class="hint">暂无留痕。</div>';
+  h+='</div>';
+  return h;
+}
+function renderMainTable(){
+  var tb=document.querySelector('#assetTable tbody');
+  if(!STORE.assets.length){ tb.innerHTML='<tr><td colspan="12" class="empty">还没有登记，点「新增一笔」开始</td></tr>'; return; }
+  var html='';
+  STORE.assets.forEach(function(r){
+    var id=rid(r), name=selOf(r,F.aName);
+    var principal=num(r[F.aPrincipal]), mv=num(r[F.aMarket]);
+    var cur=selOf(r,F.aCurrency)||'人民币';
+    var cnyMV=toCNY(mv, cur);
+    var isDebt=isLiab(selOf(r,F.aCat));
+    var gain=cnyMV-toCNY(principal, cur);
+    var gainTxt = isDebt ? '—' : ((gain>=0?'+':'-')+money(Math.abs(gain)));
+    var gainCls = gain>0?'money-up':(gain<0?'money-down':'');
+    var open = EXPANDED===id;
+    var meta=navMeta(r), track=navTrack(r), share=meta.share, nav=meta.nav, navDate=meta.navDate;
+    var isTrack = !!track || !!share;
+    var need = isTrack && (!share || !track);
+    var orgLine = txtOf(r,F.aOrg) ? '<div class="hint">'+esc(txtOf(r,F.aOrg))+(txtOf(r,F.aOwner)?' · '+esc(txtOf(r,F.aOwner)):'')+'</div>' : '';
+    var codeLine = track ? '<div class="hint">跟踪码 '+esc(track)+'</div>' : '';
+    var shareCell = share ? num(share).toLocaleString('zh-CN',{maximumFractionDigits:2}) : (isTrack?'<span style="color:var(--warn)">待补</span>':'<span class="hint">—</span>');
+    var navCell = nav ? esc(nav) : (isTrack?'<span style="color:var(--warn)">待更新</span>':'<span class="hint">—</span>');
+    var navTip = navDate ? '<div class="hint">'+esc(navDate)+'</div>' : '';
+    html+='<tr class="rowclick'+(open?' open':'')+'" data-row="'+esc(id)+'">'+
+      '<td><b>'+esc(name)+'</b>'+(need?'<div style="color:var(--warn);font-size:12px">⚠ 点「改」补份额/净值代码</div>':'')+codeLine+orgLine+'</td>'+
+      '<td>'+esc(selOf(r,F.aCat))+'</td>'+
+      '<td><span class="cur'+(cur==='人民币'?'':' foreign')+'">'+esc(cur)+'</span></td>'+
+      '<td>'+esc(d10(r[F.aBuyDate]))+'</td>'+
+      '<td class="num">'+fmtMoney(principal, cur)+'</td>'+
+      '<td class="num">'+shareCell+'</td>'+
+      '<td class="num"><b>'+navCell+'</b>'+navTip+'</td>'+
+      '<td class="num"><b>'+fmtMoney(mv, cur)+'</b></td>'+
+      '<td class="num">'+money(cnyMV)+'</td>'+
+      '<td class="num '+gainCls+'">'+gainTxt+'</td>'+
+      '<td>'+esc(d10(r[F.aDue]))+'</td>'+
+      '<td>'+
+        '<button class="btn mini txn" data-txn="'+esc(id)+'">记一笔</button> '+
+        '<button class="btn mini ghost" data-edit="'+esc(id)+'">改</button> '+
+        '<button class="btn mini danger" data-del="'+esc(id)+'">删</button>'+
+      '</td></tr>';
+    if(open) html+='<tr class="detail"><td colspan="12">'+detailHTML(name)+'</td></tr>';
+  });
+  tb.innerHTML=html;
+}
+
+/* 调度中心 */
+function refreshAll(){
+  renderStats(); renderPie(); renderRemind(); renderTrend(); renderAdvice(); renderMainTable();
+}
+function afterWrite(){
+  hideForm('assetForm');
+  closeTxn();
+  loadAll().then(refreshAll);
+}
+function setSync(ok,text){
+  document.getElementById('syncDot').style.background=ok?'#86efac':'#fca5a5';
+  document.getElementById('syncText').textContent=text;
+}
+
+/* 表单 */
+function selHTML(name,options,cur){
+  return '<select name="'+name+'">'+options.map(function(o){return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>';
+}
+function field(label,inner){ return '<div class="field"><label>'+label+'</label>'+inner+'</div>'; }
+function buildAssetForm(){
+  document.getElementById('assetForm').innerHTML=
+    '<div style="grid-column:1/-1;background:#f0f7ff;border:1px solid #d5e5ff;border-radius:8px;padding:10px 12px;font-size:12px;color:#1e40af;line-height:1.7">'+
+      '<b>净值自动跟踪</b>：这些产品你能从银行 App 查到净值，登记后由本机任务自动抓取、按份额算出市值。带 * 的建议填，没填不影响保存。<br>'+
+      '① 净值代码 = 管理人官网的份额代码（如中银理财 <code>QQGPJUSDRKI</code>），不知道就填销售代码也行；② 份额从持仓详情看；③ 净值每日更新即可，市值是系统算的，不用你算。'+
+    '</div>'+
+    field('名称 *','<input name="aName" required placeholder="如：中银理财美元日日开">')+
+    field('分类 *',selHTML('aCat',CATS,'银行理财'))+
+    field('机构','<input name="aOrg" placeholder="如：招商银行">')+
+    field('货币种类 *',selHTML('aCurrency',CURRENCIES,'人民币'))+
+    field('① 净值代码 *','<input name="aTrack" placeholder="如 QQGPJUSDRKI / ZYD3202A">')+
+    field('② 持有份额 *','<input name="aShare" type="number" step="0.0001" placeholder="如 47998.65">')+
+    field('③ 最新净值','<input name="aNav" type="number" step="0.000001" placeholder="如 1.110792">')+
+    field('净值日期','<input name="aNavDate" type="date">')+
+    field('投入本金','<input name="aPrincipal" type="number" step="0.01" placeholder="0.00">')+
+    field('当前金额 *','<input name="aMarket" type="number" step="0.01" placeholder="填了份额和净值可留空">')+
+    field('购买日','<input name="aBuyDate" type="date">')+
+    field('更新日期','<input name="aUpdate" type="date">')+
+    field('到期日','<input name="aDue" type="date">')+
+    field('状态',selHTML('aStatus',STATUSES,'持有中'))+
+    field('归属人',selHTML('aOwner',OWNERS,'本人'))+
+    field('备注','<input name="aNote" placeholder="可空">')+
+    '<div style="grid-column:1/-1;display:flex;gap:10px;align-items:center">'+
+      '<button type="submit" class="btn primary">保存</button>'+
+      '<button type="button" class="btn ghost" id="cancelAsset">取消</button>'+
+      '<input type="hidden" name="editId" value="">'+
+    '</div>';
+}
+function buildTxnForm(){
+  document.getElementById('txnForm').innerHTML=
+    field('类型',selHTML('tType',Object.keys(TXN_DIR),'利息'))+
+    field('金额 *','<input name="tAmount" type="number" step="0.01" placeholder="0.00">')+
+    field('日期','<input name="tDate" type="date">')+
+    '<div style="grid-column:1/-1"><div class="field"><label>备注</label><input name="tNote" placeholder="可空"></div>'+
+    '<div class="hint" id="txnDirHint"></div></div>';
+}
+function assetPV(form){
+  var g=function(n){var e=form.elements.namedItem(n);return e?e.value:'';};
+  var pv={};
+  var track=g('aTrack').trim(), share=g('aShare').trim(), nav=g('aNav').trim(), navDate=g('aNavDate').trim();
+  var manualMv=g('aMarket').trim();
+  var mv = manualMv==='' ? (num(share)*num(nav)) : num(manualMv);
+  var meta={ memo:g('aNote').trim(), share:share, nav:nav, navDate:navDate, track:track };
+  var noteTxt = (share||nav||navDate||track) ? JSON.stringify(meta) : meta.memo;
+  pv[F.aName]={text:g('aName').trim()};
+  pv[F.aCode]={text:track};
+  pv[F.aCat]={select:g('aCat')};
+  pv[F.aOwner]={select:g('aOwner')};
+  pv[F.aOrg]={text:g('aOrg').trim()};
+  pv[F.aPrincipal]={number:num(g('aPrincipal'))};
+  pv[F.aMarket]={number:mv};
+  pv[F.aCurrency]={select:g('aCurrency')||'人民币'};
+  if(g('aBuyDate')) pv[F.aBuyDate]={date:g('aBuyDate')};
+  if(g('aUpdate')) pv[F.aUpdate]={date:g('aUpdate')};
+  if(g('aDue')) pv[F.aDue]={date:g('aDue')};
+  pv[F.aStatus]={select:g('aStatus')};
+  pv[F.aNote]={text:noteTxt};
+  return pv;
+}
+function hideForm(id){ document.getElementById(id).style.display='none'; }
+
+/* 净值跟踪信息打包在「备注」JSON 中，不改表结构 */
+var TRACK_ALIAS = {'ZYD3202A':'QQGPJUSDRKI'};
+function navMeta(rec){
+  var raw=txtOf(rec,F.aNote);
+  try{ var o=JSON.parse(raw); if(o&&typeof o==='object') return {
+    memo:o.memo||'', share:o.share||'', nav:o.nav||'', navDate:o.navDate||'', track:o.track||'' }; }catch(e){}
+  return {memo:raw, share:'', nav:'', navDate:'', track:''};
+}
+function navTrack(rec){
+  var m=navMeta(rec), code=txtOf(rec,F.aCode);
+  return TRACK_ALIAS[code]||m.track||code;
+}
+function navMarket(rec){
+  var m=navMeta(rec), sh=num(m.share), nv=num(m.nav);
+  return (sh>0&&nv>0) ? sh*nv : null;
+}
+
+/* 记一笔弹窗 */
+var TXN_TARGET_ID=null;
+function openTxn(id){
+  var rec=STORE.assets.filter(function(r){return rid(r)===id;})[0];
+  if(!rec) return;
+  TXN_TARGET_ID=id;
+  document.getElementById('txnAssetName').textContent=selOf(rec,F.aName);
+  buildTxnForm();
+  document.getElementById('txnForm').elements.namedItem('tDate').value=todayStr();
+  updateDirHint();
+  document.getElementById('txnMask').classList.add('show');
+}
+function closeTxn(){ document.getElementById('txnMask').classList.remove('show'); TXN_TARGET_ID=null; }
+function updateDirHint(){
+  var form=document.getElementById('txnForm');
+  var t=form.elements.namedItem('tType').value;
+  var dir=TXN_DIR[t];
+  var word = dir>0 ? '增加' : (dir<0 ? '减少' : '不自动改变（仅记流水，如买入/卖出内部转换）');
+  document.getElementById('txnDirHint').textContent='当前金额将'+word+'。';
+}
+function saveTxn(){
+  var form=document.getElementById('txnForm');
+  var g=function(n){var e=form.elements.namedItem(n);return e?e.value:'';};
+  var amt=num(g('tAmount'));
+  if(amt<=0){ alert('请填写金额'); return; }
+  var rec=STORE.assets.filter(function(r){return rid(r)===TXN_TARGET_ID;})[0];
+  if(!rec) return;
+  var name=selOf(rec,F.aName);
+  var cur=selOf(rec,F.aCurrency)||'人民币';
+  var type=g('tType'), dir=TXN_DIR[type]||0;
+  var oldMv=num(rec[F.aMarket]);
+  var newMv=oldMv + dir*amt;
+  if(newMv<0) newMv=0;
+  var date=g('tDate')||todayStr();
+  var note=g('tNote').trim();
+  var chain=Promise.resolve();
+
+  var pvT={};
+  pvT[F.tDate]={date:date};
+  pvT[F.tType]={select:type};
+  pvT[F.tAsset]={text:name};
+  pvT[F.tAmount]={number:amt};
+  pvT[F.tNote]={text:note};
+  chain=chain.then(function(){ return addRecordTo(DB_TXN,pvT,'流水/'+name,type+' '+fmtMoney(amt,cur)); });
+
+  if(dir!==0){
+    var pvA={};
+    pvA[F.aMarket]={number:newMv};
+    pvA[F.aUpdate]={date:date};
+    var detail='记一笔('+type+') '+fmtMoney(oldMv,cur)+' → '+fmtMoney(newMv,cur);
+    chain=chain.then(function(){ return updateRecordIn(DB_ASSETS,TXN_TARGET_ID,pvA,'资产/'+name,detail); });
+    chain=chain.then(function(){ return snapshot(name,newMv,cur); });
+  }
+  chain.then(function(){ afterWrite(); }).catch(function(){ setSync(false,'保存失败，请重试'); });
+}
+
+/* 事件绑定 */
+function bindEvents(){
+  var rnb=document.getElementById('refreshNavBtn');
+  if(rnb) rnb.onclick=function(){
+    var old=rnb.textContent; rnb.textContent='抓取中…'; rnb.disabled=true;
+    db.refreshNav().then(function(r){
+      rnb.textContent=old; rnb.disabled=false;
+      var ok=(r.results||[]).filter(function(x){return x.status==='ok';}).length;
+      var fail=(r.results||[]).filter(function(x){return x.status==='fail';}).length;
+      alert('净值抓取完成：成功 '+ok+' 条'+(fail?'，失败 '+fail+' 条':'')+'。\n时间：'+(r.at||''));
+      loadAll().then(refreshAll);
+    }).catch(function(){ rnb.textContent=old; rnb.disabled=false; alert('抓取失败，请确认本机服务正在运行'); });
+  };
+  document.getElementById('rateBtn').onclick=openRate;
+  document.getElementById('rateCancel').onclick=closeRate;
+  document.getElementById('rateSave').onclick=saveRates;
+  document.getElementById('rateMask').addEventListener('click',function(e){ if(e.target===this) closeRate(); });
+  document.getElementById('confirmCancel').onclick=closeConfirm;
+  document.getElementById('confirmOk').onclick=function(){ var cb=_confirmCb; closeConfirm(); if(cb) cb(); };
+  document.getElementById('txnCancel').onclick=closeTxn;
+  document.getElementById('txnSave').onclick=saveTxn;
+  document.getElementById('txnMask').addEventListener('click',function(e){ if(e.target===this) closeTxn(); });
+  document.getElementById('txnForm').addEventListener('change',updateDirHint);
+
+  buildAssetForm();
+  document.getElementById('addAssetBtn').onclick=function(){
+    buildAssetForm();
+    var f=document.getElementById('assetForm');
+    f.elements.namedItem('aUpdate').value=todayStr();
+    f.style.display='grid';
+  };
+  document.getElementById('assetForm').addEventListener('input',function(){ saveDraft('asset',this); });
+  document.getElementById('assetForm').addEventListener('click',function(e){
+    if(e.target.id==='cancelAsset') hideForm('assetForm');
+  });
+  document.getElementById('assetForm').addEventListener('submit',function(e){
+    e.preventDefault();
+    var name=this.elements.namedItem('aName').value.trim();
+    if(!name){ alert('请填写名称'); return; }
+    var editId=this.elements.namedItem('editId').value;
+    var pv=assetPV(this), mv=num(pv[F.aMarket]);
+    var cur=selOf(pv,F.aCurrency)||'人民币';
+    var chain=Promise.resolve();
+    if(editId){
+      var oldRec=STORE.assets.filter(function(r){return rid(r)===editId;})[0];
+      var oldMv=oldRec?num(oldRec[F.aMarket]):0;
+      var detail='修改 '+name+' · '+fmtMoney(oldMv,cur)+' → '+fmtMoney(mv,cur);
+      chain=chain.then(function(){ return updateRecordIn(DB_ASSETS,editId,pv,'资产/'+name,detail); });
+      if(oldMv!==mv) chain=chain.then(function(){ return snapshot(name,mv,cur); });
+    } else {
+      chain=chain.then(function(){ return addRecordTo(DB_ASSETS,pv,'资产/'+name,'新增 '+name+' '+fmtMoney(mv,cur)); });
+      chain=chain.then(function(){ return snapshot(name,mv,cur); });
+    }
+    chain.then(function(){ clearDraft('asset'); afterWrite(); }).catch(function(){ setSync(false,'保存失败，请重试'); });
+  });
+
+  document.querySelector('#assetTable tbody').addEventListener('click',function(e){
+    var t=e.target;
+    if(t.dataset && t.dataset.txn){ e.stopPropagation(); openTxn(t.dataset.txn); return; }
+    if(t.dataset && t.dataset.edit){
+      e.stopPropagation();
+      var id=t.dataset.edit;
+      var rec=STORE.assets.filter(function(r){return rid(r)===id;})[0];
+      if(!rec) return;
+      buildAssetForm(); var f=document.getElementById('assetForm');
+      var meta=navMeta(rec);
+      f.elements.namedItem('aName').value=selOf(rec,F.aName);
+      f.elements.namedItem('aCat').value=selOf(rec,F.aCat);
+      f.elements.namedItem('aOwner').value=selOf(rec,F.aOwner);
+      f.elements.namedItem('aOrg').value=txtOf(rec,F.aOrg);
+      f.elements.namedItem('aCurrency').value=selOf(rec,F.aCurrency)||'人民币';
+      f.elements.namedItem('aTrack').value=navTrack(rec);
+      f.elements.namedItem('aShare').value=meta.share;
+      f.elements.namedItem('aNav').value=meta.nav;
+      f.elements.namedItem('aNavDate').value=meta.navDate;
+      f.elements.namedItem('aPrincipal').value=num(rec[F.aPrincipal]);
+      f.elements.namedItem('aMarket').value=num(rec[F.aMarket]);
+      f.elements.namedItem('aBuyDate').value=d10(rec[F.aBuyDate]);
+      f.elements.namedItem('aUpdate').value=d10(rec[F.aUpdate]);
+      f.elements.namedItem('aDue').value=d10(rec[F.aDue]);
+      f.elements.namedItem('aStatus').value=selOf(rec,F.aStatus);
+      f.elements.namedItem('aNote').value=meta.memo;
+      f.elements.namedItem('editId').value=id;
+      f.style.display='grid';
+      f.scrollIntoView({behavior:'smooth',block:'nearest'});
+      return;
+    }
+    if(t.dataset && t.dataset.del){
+      e.stopPropagation();
+      var did=t.dataset.del;
+      var rec2=STORE.assets.filter(function(r){return rid(r)===did;})[0];
+      var nm=rec2?selOf(rec2,F.aName):'';
+      askConfirm('删除资产','确认删除「'+nm+'」？此操作会留痕。',function(){
+        deleteRecordIn(DB_ASSETS,did,'资产/'+nm,'删除资产 '+nm)
+          .then(afterWrite).catch(function(){setSync(false,'删除失败');});
+      });
+      return;
+    }
+    var row=t.closest('tr.rowclick');
+    if(row){
+      var rid2=row.dataset.row;
+      EXPANDED = (EXPANDED===rid2) ? null : rid2;
+      renderMainTable();
+    }
+  });
+
+  document.getElementById('clearDemoBtn').onclick=function(){
+    askConfirm('清空示例数据','将删除所有备注以 [示例] 开头的记录（含4张表），不可恢复但会留痕。确认继续？',function(){
+      var jobs=[];
+      [[DB_ASSETS,STORE.assets,F.aNote,'资产'],
+       [DB_TXN,STORE.txn,F.tNote,'流水'],
+       [DB_SNAPSHOT,STORE.snapshot,F.sNote,'快照'],
+       [DB_AUDIT,STORE.audit,F.uDetail,'留痕']].forEach(function(g){
+        g[1].forEach(function(r){
+          if(String(txtOf(r,g[2])).indexOf('[示例]')===0){
+            jobs.push(deleteRecordIn(g[0],rid(r),'清空示例/'+g[3],'删除示例记录'));
+          }
+        });
+      });
+      if(!jobs.length){ afterWrite(); return; }
+      Promise.all(jobs).then(function(){ audit('删除','清空示例','批量清除示例数据'); afterWrite(); })
+        .catch(function(){setSync(false,'清理未完成');});
+    });
+  };
+}
+
+/* 初始化 */
+function init(){
+  if(window.__LOCALDB__) db=window.__LOCALDB__;
+  bindEvents();
+  if(!db){ setSync(false,'只读预览（未连接数据源）'); refreshAll(); return; }
+  setSync(true,'已连接 · 同步中');
+  db.onUpdated(function(){ loadAll().then(refreshAll); });
+  loadAll().then(function(){ refreshAll(); setSync(true,'已同步 · '+STORE.assets.length+' 项'); })
+    .catch(function(){ setSync(false,'加载失败，请刷新'); });
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
+</script>
+</body>
+</html>
