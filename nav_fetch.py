@@ -73,10 +73,14 @@ def parse_meta(raw):
 
 
 def track_code(rec, alias):
-    """确定用于抓取的官网份额代码。"""
+    """确定用于抓取的官网份额代码。
+
+    优先级与前端 navTrack 保持一致：销售代码命中别名映射时优先用官网代码，
+    否则才用备注里手填的 track，最后回退销售代码本身。
+    """
     meta = parse_meta(rec.get("备注", ""))
     sale = rec.get("产品代码型号", "") or ""
-    return meta.get("track") or alias.get(sale) or sale
+    return alias.get(sale) or meta.get("track") or sale
 
 
 def now_str():
