@@ -20,5 +20,8 @@ build/
 dist/
 *.app/
 
+# ===== WorkBuddy 工作日志（含本机真实数据/路径，绝不进仓库）=====
+.workbuddy/
+
 # ===== 系统文件 =====
 .DS_Store

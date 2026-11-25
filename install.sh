@@ -1,5 +1,6 @@
 #!/bin/bash
-# 家庭理财台账 · 本地版 一键安装（macOS）
+# 家庭理财台账 · 本地版 环境安装（macOS）
+# 手动模式：不配置开机自启与定时任务；服务随桌面 App 启动、随关闭退出。
 # 用法：bash install.sh
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,31 +22,21 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
 
 mkdir -p "$DIR/data"
 
-# 2) 由模板生成 launchd 配置（占位符 __APP_DIR__ 替换为实际路径）
+# 2) 手动模式：不生成、不加载任何 launchd 任务。
+#    若历史上装过旧版常驻任务，这里主动卸载，避免与"随开随关"冲突。
 AGENTS="$HOME/Library/LaunchAgents"
-mkdir -p "$AGENTS"
-for label in com.financeledger.web com.financeledger.nav; do
-  sed "s|__APP_DIR__|$DIR|g" "$DIR/deploy/$label.plist" > "$AGENTS/$label.plist"
-done
-
-# 3) 加载定时任务（优先用现代 bootstrap 接口，失败则回退旧 load 接口）
-echo "== 加载 launchd 任务 =="
 UID_N=$(id -u)
-for label in com.financeledger.web com.financeledger.nav; do
+for label in com.financeledger.web com.financeledger.nav com.financeledger.backup; do
   launchctl bootout "gui/$UID_N/$label" 2>/dev/null || true
-  if launchctl bootstrap "gui/$UID_N" "$AGENTS/$label.plist" 2>/dev/null; then
-    echo "   $label 已加载 (bootstrap)"
-  else
-    launchctl unload "$AGENTS/$label.plist" 2>/dev/null || true
-    launchctl load "$AGENTS/$label.plist" 2>/dev/null \
-      && echo "   $label 已加载 (load 回退)" \
-      || echo "   ⚠ $label 加载失败：请在【你自己的终端】手动执行 bash install.sh（AI 执行环境无法写 launchd）"
-  fi
+  launchctl unload "$AGENTS/$label.plist" 2>/dev/null || true
+  rm -f "$AGENTS/$label.plist"
 done
+echo "== 已确保没有常驻/开机自启任务 =="
 
 echo "== 安装完成 =="
-echo "网页： http://127.0.0.1:8765"
-echo "桌面： 双击 $DIR/dist/家庭理财台账.app"
+echo "启动： 双击 $DIR/dist/家庭理财台账.app（打开时自动同步净值+备份）"
+echo "退出： 关闭窗口即彻底退出并释放监听端口"
+echo "网页： http://127.0.0.1:31415（仅在 App 开着时可访问）"
 echo "数据： $DIR/data/finance.db"
-echo "每日 08:00 自动抓净值；开机自启网页服务"
+echo "备份： $DIR/data/backups/ （每次启动 App 备份一次，保留最近 30 份）"
 echo "卸载： bash \"$DIR/uninstall.sh\""

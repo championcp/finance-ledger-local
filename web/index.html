@@ -134,6 +134,7 @@ tr.rowclick.open{background:#eef4ff}
     <div class="toolbar">
       <button class="btn primary" id="addAssetBtn"><span class="ic">＋</span>新增一笔</button>
       <button class="btn ghost" id="refreshNavBtn">⟳ 刷新净值</button>
+      <button class="btn ghost" id="exportBtn">↓ 导出 Excel</button>
       <button class="btn ghost" id="rateBtn">汇率设置</button>
       <button class="btn ghost" id="clearDemoBtn">清空示例</button>
       <span class="hint" style="margin-left:auto">负债请填剩余本金（正数）</span>
@@ -798,6 +799,25 @@ function bindEvents(){
       alert('净值抓取完成：成功 '+ok+' 条'+(fail?'，失败 '+fail+' 条':'')+'。\n时间：'+(r.at||''));
       loadAll().then(refreshAll);
     }).catch(function(){ rnb.textContent=old; rnb.disabled=false; alert('抓取失败，请确认本机服务正在运行'); });
+  };
+  /* 导出 Excel：拉取文件流触发浏览器下载 */
+  var exb=document.getElementById('exportBtn');
+  if(exb) exb.onclick=function(){
+    var old=exb.textContent; exb.textContent='导出中…'; exb.disabled=true;
+    fetch('/api/export').then(function(r){
+      if(!r.ok) throw new Error('export failed');
+      return r.blob().then(function(blob){
+        var cd=r.headers.get('Content-Disposition')||'';
+        var m=cd.match(/filename\*=UTF-8''([^;]+)/i);
+        var fname = m ? decodeURIComponent(m[1]) : '理财明细.xlsx';
+        var a=document.createElement('a');
+        var url=URL.createObjectURL(blob);
+        a.href=url; a.download=fname; document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      });
+    }).then(function(){ exb.textContent=old; exb.disabled=false; })
+      .catch(function(){ exb.textContent=old; exb.disabled=false; alert('导出失败，请确认本机服务正在运行'); });
   };
   document.getElementById('rateBtn').onclick=openRate;
   document.getElementById('rateCancel').onclick=closeRate;

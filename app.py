@@ -5,9 +5,11 @@
 import os
 import threading
 import datetime
-from flask import Flask, request, jsonify, send_from_directory
+import io
+from flask import Flask, request, jsonify, send_from_directory, send_file
 
 import storage
+import config
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE_DIR, "web")
@@ -94,6 +96,22 @@ def api_refresh_nav():
         _refresh_lock.release()
 
 
+@app.route("/api/export")
+def api_export():
+    """导出登记的资产明细为 Excel（只读，不改数据）。"""
+    try:
+        import exporter
+        data = exporter.build_bytes()
+        return send_file(
+            io.BytesIO(data),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=exporter.filename(),
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "msg": "导出失败：%s" % e}), 500
+
+
 @app.route("/api/status")
 def api_status():
     return jsonify({
@@ -105,7 +123,7 @@ def api_status():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("FINANCE_PORT", "8765"))
+    port = config.PORT
     print("=" * 56)
     print("  家庭理财台账 · 本地版已启动")
     print("  打开浏览器访问： http://127.0.0.1:%d" % port)
