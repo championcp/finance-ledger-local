@@ -96,6 +96,30 @@ def api_refresh_nav():
         _refresh_lock.release()
 
 
+_rate_lock = threading.Lock()
+
+
+@app.route("/api/refresh-rate", methods=["POST"])
+def api_refresh_rate():
+    """自动抓取最新汇率（招行现汇买入价优先）并写回汇率表。"""
+    if not _rate_lock.acquire(blocking=False):
+        return jsonify({"ok": False, "msg": "正在抓取中，请稍候"})
+    try:
+        import rate_fetch
+        rs = rate_fetch.run(verbose=True)
+        rates = {r["currency"]: r["rate"] for r in rs["results"] if r["status"] == "ok"}
+        return jsonify({
+            "ok": bool(rates),
+            "rates": rates,
+            "source": rs["source"],
+            "time": rs["time"],
+            "msg": rs["fallback"],
+            "at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    finally:
+        _rate_lock.release()
+
+
 @app.route("/api/export")
 def api_export():
     """导出登记的资产明细为 Excel（只读，不改数据）。"""

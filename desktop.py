@@ -2,7 +2,7 @@
 """家庭理财台账 · 桌面版入口（手动启动模式）
 
 行为：
-- 启动时：拉起本机 Flask 服务 → 后台同步一次数据（抓净值 + 备份）。
+- 启动时：拉起本机 Flask 服务 → 后台同步一次数据（抓净值 + 刷汇率 + 备份）。
 - 运行中：独立 WebKit 窗口加载本机页面。
 - 关闭时：彻底终止自己拉起的服务并释放监听端口，不留后台进程。
 
@@ -79,8 +79,8 @@ def ensure_service():
 
 
 def sync_once():
-    """启动时同步一次数据：先抓净值，再做一次备份。返回摘要字典。"""
-    summary = {"nav": None, "backup": None}
+    """启动时同步一次数据：抓净值 → 刷汇率 → 备份。返回摘要字典。"""
+    summary = {"nav": None, "rate": None, "backup": None}
     try:
         import nav_fetch
         summary["nav"] = nav_fetch.run(verbose=False)
@@ -88,6 +88,13 @@ def sync_once():
         _log("净值同步完成：成功 %d / 共 %d 条" % (ok, len(summary["nav"] or [])))
     except Exception as e:
         _log("净值同步失败：%s" % e)
+    try:
+        import rate_fetch
+        summary["rate"] = rate_fetch.run(verbose=False)
+        _log("汇率同步完成：%s（%s）" %
+             (summary["rate"]["source"], summary["rate"]["time"] or "无牌价时间"))
+    except Exception as e:
+        _log("汇率同步失败：%s" % e)
     try:
         import backup as backup_mod
         summary["backup"] = backup_mod.run(verbose=False)
