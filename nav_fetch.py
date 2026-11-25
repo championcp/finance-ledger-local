@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """净值抓取：按资产台账登记的跟踪代码，逐个抓取最新净值。
 
-数据源按产品自动路由：
-- 备注 JSON 带 regCode（产品登记编码）→ 中国理财网（浙银理财等非中银产品，
-  见 chinawealth_fetch.py）；
+数据源按产品自动路由（看备注 JSON）：
+- src="汇丰基金" → 汇丰投资单公开报价接口（代销基金，见 hsbc_fund_fetch.py）；
+- regCode（产品登记编码）→ 中国理财网（浙银理财等非中银产品，见 chinawealth_fetch.py）；
 - 否则 → 中银理财官网 https://www.bocwm.cn/webApi/cms/productNetWorth/getNetWorthByCode
   （该接口按日期升序返回，取最后一条才是最新净值）。
 
@@ -69,9 +69,18 @@ def fetch_nav(code, retries=2):
 def fetch_for(rec, code, meta):
     """按产品登记的来源路由数据源。
 
-    备注 JSON 里带 regCode（产品登记编码）→ 中国理财网（浙银理财等非中银产品）；
+    备注 JSON 里带 src="汇丰基金" → 汇丰投资单接口（代销基金）；
+    带 regCode（产品登记编码）→ 中国理财网（浙银理财等非中银产品）；
     否则 → 中银理财官网。返回 (净值, 日期, 币种, 错误原因)。
     """
+    src = str(meta.get("src", "") or "").strip()
+    if src == "汇丰基金":
+        try:
+            import hsbc_fund_fetch
+        except Exception as e:
+            return None, None, None, "汇丰基金模块不可用：%s" % e
+        nv, d, cur = hsbc_fund_fetch.fetch_nav(code)
+        return nv, d, cur, ("" if nv is not None else hsbc_fund_fetch.last_error())
     reg_code = str(meta.get("regCode", "") or "").strip()
     if reg_code:
         try:
