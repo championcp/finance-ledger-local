@@ -74,6 +74,10 @@ tr.rowclick.open{background:#eef4ff}
 .foot{color:var(--sub);font-size:12px;text-align:center;margin-top:26px;line-height:1.7}
 .money-up{color:var(--up)}
 .money-down{color:var(--down)}
+.toast{position:fixed;left:50%;top:18px;transform:translate(-50%,-140%);z-index:99;max-width:min(92vw,520px);padding:11px 18px;border-radius:10px;background:#1f2430;color:#fff;font-size:13px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.22);opacity:0;transition:transform .28s ease,opacity .28s ease;pointer-events:none;text-align:center}
+.toast.show{transform:translate(-50%,0);opacity:1}
+.toast.ok{background:#067647}
+.toast.err{background:#b42318}
 @media(max-width:768px){
   .cards{grid-template-columns:1fr}
   .panel{grid-template-columns:1fr}
@@ -150,6 +154,9 @@ tr.rowclick.open{background:#eef4ff}
     备份方式：复制 data/finance.db 即可。只需在「我的理财」登记，流水、留痕、市值快照均自动维护。敏感信息建议脱敏填写。
   </div>
 </div>
+
+<!-- 操作反馈 -->
+<div class="toast" id="toast"></div>
 
 <!-- 记一笔弹窗 -->
 <div class="mask" id="txnMask">
@@ -249,7 +256,7 @@ var OWNERS = ['本人','配偶','家庭共用'];
 var STATUSES = ['持有中','已到期','已赎回'];
 var CURRENCIES = ['人民币','美元','港币'];
 var CUR_SYM = {'人民币':'¥', '美元':'$', '港币':'HK$'};
-var TXN_DIR = {'利息':1,'分红':1,'存入':1,'转入':1,'买入':0,'卖出':0,'取出':-1,'转出':-1,'费用':-1};
+var TXN_DIR = {'利息':1,'分红':1,'存入':1,'转入':1,'买入':1,'卖出':-1,'取出':-1,'转出':-1,'费用':-1};
 
 var db = null;
 var STORE = { assets:[], txn:[], snapshot:[], audit:[], rate:[] };
@@ -288,6 +295,14 @@ function nowStr(){
 function todayStr(){
   var d=new Date(); function p(n){return n<10?'0'+n:''+n;}
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+var _toastTimer=null;
+function toast(msg,ok){
+  var el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='toast show '+(ok===true?'ok':(ok===false?'err':''));
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(function(){ el.classList.remove('show'); },3200);
 }
 var _confirmCb=null;
 function askConfirm(title,msg,cb){
@@ -686,7 +701,7 @@ function buildAssetForm(){
   document.getElementById('assetForm').innerHTML=
     '<div style="grid-column:1/-1;background:#f0f7ff;border:1px solid #d5e5ff;border-radius:8px;padding:10px 12px;font-size:12px;color:#1e40af;line-height:1.7">'+
       '<b>净值自动跟踪</b>：这些产品你能从银行 App 查到净值，登记后由本机任务自动抓取、按份额算出市值。带 * 的建议填，没填不影响保存。<br>'+
-      '① 净值代码 = 份额/销售代码（中银理财如 <code>QQGPJUSDRKI</code>，浙银理财如 <code>ZYJXG0006A</code>）；浙银理财等非中银产品还要填「产品登记编码」（Z 开头，产品说明书/理财App上可查，如 <code>Z7011825000176</code>），否则无法自动抓净值；② 份额从持仓详情看；③ 净值每日更新即可，市值系统自动算。'+
+      '① 净值代码 = 份额/销售代码（中银理财如 <code>QQGPJUSDRKI</code>，浙银理财如 <code>ZYJXG0006A</code>，汇丰基金如 <code>U50001</code>）；浙银理财等非中银产品还要填「产品登记编码」（Z 开头，如 <code>Z7011825000176</code>）；汇丰代销基金把「净值数据源」选为「汇丰基金」（代码填汇丰投资单上的编号）。② 份额从持仓详情看；③ 净值每日自动更新，市值系统算。'+
     '</div>'+
     field('名称 *','<input name="aName" required placeholder="如：中银理财美元日日开">')+
     field('分类 *',selHTML('aCat',CATS,'银行理财'))+
@@ -694,6 +709,7 @@ function buildAssetForm(){
     field('货币种类 *',selHTML('aCurrency',CURRENCIES,'人民币'))+
     field('① 净值代码 *','<input name="aTrack" placeholder="如 QQGPJUSDRKI / ZYD3202A">')+
     field('产品登记编码','<input name="aRegCode" placeholder="浙银理财等非中银产品填，如 Z7011825000176">')+
+    field('净值数据源',selHTML('aSrc',['自动','汇丰基金'],'自动'))+
     field('② 持有份额 *','<input name="aShare" type="number" step="0.0001" placeholder="如 47998.65">')+
     field('③ 最新净值','<input name="aNav" type="number" step="0.000001" placeholder="如 1.110792">')+
     field('净值日期','<input name="aNavDate" type="date">')+
@@ -724,11 +740,13 @@ function assetPV(form){
   var pv={};
   var track=g('aTrack').trim(), share=g('aShare').trim(), nav=g('aNav').trim(), navDate=g('aNavDate').trim();
   var regCode=g('aRegCode')?g('aRegCode').trim():'';
+  var src=g('aSrc')||'自动';
   var manualMv=g('aMarket').trim();
   var mv = manualMv==='' ? (num(share)*num(nav)) : num(manualMv);
   var meta={ memo:g('aNote').trim(), share:share, nav:nav, navDate:navDate, track:track };
   if(regCode) meta.regCode=regCode;
-  var noteTxt = (share||nav||navDate||track||regCode) ? JSON.stringify(meta) : meta.memo;
+  if(src==='汇丰基金') meta.src=src;
+  var noteTxt = (share||nav||navDate||track||regCode||src==='汇丰基金') ? JSON.stringify(meta) : meta.memo;
   pv[F.aName]={text:g('aName').trim()};
   pv[F.aCode]={text:track};
   pv[F.aCat]={select:g('aCat')};
@@ -752,8 +770,8 @@ function navMeta(rec){
   var raw=txtOf(rec,F.aNote);
   try{ var o=JSON.parse(raw); if(o&&typeof o==='object') return {
     memo:o.memo||'', share:o.share||'', nav:o.nav||'', navDate:o.navDate||'',
-    track:o.track||'', regCode:o.regCode||'' }; }catch(e){}
-  return {memo:raw, share:'', nav:'', navDate:'', track:'', regCode:''};
+    track:o.track||'', regCode:o.regCode||'', src:o.src||'自动' }; }catch(e){}
+  return {memo:raw, share:'', nav:'', navDate:'', track:'', regCode:'', src:'自动'};
 }
 function navTrack(rec){
   var m=navMeta(rec), code=txtOf(rec,F.aCode);
@@ -781,15 +799,17 @@ function updateDirHint(){
   var form=document.getElementById('txnForm');
   var t=form.elements.namedItem('tType').value;
   var dir=TXN_DIR[t];
-  var word = dir>0 ? '增加' : (dir<0 ? '减少' : '不自动改变（仅记流水，如买入/卖出内部转换）');
-  document.getElementById('txnDirHint').textContent='当前金额将'+word+'。';
+  var word = dir>0 ? '增加' : (dir<0 ? '减少' : '不自动改变（仅记流水）');
+  var shareHint = (t==='买入'||t==='卖出') ? '；有份额的产品会按净值同步调整份额。' : '。';
+  document.getElementById('txnDirHint').textContent='当前金额将'+word+shareHint;
 }
 function saveTxn(){
   var form=document.getElementById('txnForm');
   var g=function(n){var e=form.elements.namedItem(n);return e?e.value:'';};
   var amt=num(g('tAmount'));
   if(amt<=0){ alert('请填写金额'); return; }
-  var rec=STORE.assets.filter(function(r){return rid(r)===TXN_TARGET_ID;})[0];
+  var targetId=TXN_TARGET_ID;
+  var rec=STORE.assets.filter(function(r){return rid(r)===targetId;})[0];
   if(!rec) return;
   var name=selOf(rec,F.aName);
   var cur=selOf(rec,F.aCurrency)||'人民币';
@@ -813,11 +833,35 @@ function saveTxn(){
     var pvA={};
     pvA[F.aMarket]={number:newMv};
     pvA[F.aUpdate]={date:date};
-    var detail='记一笔('+type+') '+fmtMoney(oldMv,cur)+' → '+fmtMoney(newMv,cur);
-    chain=chain.then(function(){ return updateRecordIn(DB_ASSETS,TXN_TARGET_ID,pvA,'资产/'+name,detail); });
+    var shareDetail='';
+    /* 买入/卖出按「金额 ÷ 净值」同步增减份额，并用份额×净值重算市值，
+       否则下次刷新净值会用旧份额把市值写回去（记了跟没记一样）。 */
+    if(type==='买入'||type==='卖出'){
+      var raw=txtOf(rec,F.aNote), no=null;
+      try{ no=JSON.parse(raw); if(!no||typeof no!=='object'||Array.isArray(no)) no=null; }catch(e){}
+      var sh=no?num(no.share):0, nv=no?num(no.nav):0;
+      if(sh>0 && nv>0){
+        var ns=Math.round(Math.max(0, sh + dir*(amt/nv))*10000)/10000;
+        no.share=String(ns);
+        newMv=Math.round(ns*nv*100)/100;
+        pvA[F.aMarket]={number:newMv};
+        pvA[F.aNote]={text:JSON.stringify(no)};
+        shareDetail='，份额 '+sh+' → '+ns;
+      }
+    }
+    var detail='记一笔('+type+') '+fmtMoney(oldMv,cur)+' → '+fmtMoney(newMv,cur)+shareDetail;
+    chain=chain.then(function(){ return updateRecordIn(DB_ASSETS,targetId,pvA,'资产/'+name,detail); });
     chain=chain.then(function(){ return snapshot(name,newMv,cur); });
   }
-  chain.then(function(){ afterWrite(); }).catch(function(){ setSync(false,'保存失败，请重试'); });
+  chain.then(function(){
+    EXPANDED=targetId;   /* 自动展开该资产明细，让刚记的流水立刻可见 */
+    afterWrite();
+    toast('已记一笔：'+type+' '+fmtMoney(amt,cur)+' · 当前金额 '+fmtMoney(newMv,cur)+'，明细已展开',true);
+    setTimeout(function(){
+      var row=document.querySelector('tr.rowclick[data-row="'+targetId+'"]');
+      if(row) row.scrollIntoView({behavior:'smooth',block:'center'});
+    },120);
+  }).catch(function(){ setSync(false,'保存失败，请重试'); toast('保存失败，请重试',false); });
 }
 
 /* 事件绑定 */
@@ -913,6 +957,7 @@ function bindEvents(){
       f.elements.namedItem('aCurrency').value=selOf(rec,F.aCurrency)||'人民币';
       f.elements.namedItem('aTrack').value=navTrack(rec);
       if(f.elements.namedItem('aRegCode')) f.elements.namedItem('aRegCode').value=meta.regCode||'';
+      if(f.elements.namedItem('aSrc')) f.elements.namedItem('aSrc').value=meta.src||'自动';
       f.elements.namedItem('aShare').value=meta.share;
       f.elements.namedItem('aNav').value=meta.nav;
       f.elements.namedItem('aNavDate').value=meta.navDate;
