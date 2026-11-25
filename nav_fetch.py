@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-"""净值抓取：按资产台账登记的跟踪代码，逐个抓中银理财官网净值。
+"""净值抓取：按资产台账登记的跟踪代码，逐个抓取最新净值。
 
-- 接口：https://www.bocwm.cn/webApi/cms/productNetWorth/getNetWorthByCode
-- 接口按日期【升序】返回，必须取最后一条才是最新净值。
-- 抓到的净值写回「备注」JSON 的 nav / navDate；有份额则自动重算市值。
-- 每次成功更新写一条市值快照 + 一条操作留痕。
+数据源按产品自动路由：
+- 备注 JSON 带 regCode（产品登记编码）→ 中国理财网（浙银理财等非中银产品，
+  见 chinawealth_fetch.py）；
+- 否则 → 中银理财官网 https://www.bocwm.cn/webApi/cms/productNetWorth/getNetWorthByCode
+  （该接口按日期升序返回，取最后一条才是最新净值）。
+
+抓到的净值写回「备注」JSON 的 nav / navDate；有份额则自动重算市值。
+每次成功更新写一条市值快照 + 一条操作留痕。
 """
 import os
 import json
@@ -41,7 +45,7 @@ def _get(url):
 
 
 def fetch_nav(code, retries=2):
-    """返回 (净值, 日期, 币种)；失败返回 (None, None, None)。"""
+    """走中银理财官网抓取。返回 (净值, 日期, 币种)；失败返回 (None, None, None)。"""
     url = "%s?productCode=%s&pageNo=1&pageSize=10" % (API, code)
     for attempt in range(retries + 1):
         try:
@@ -60,6 +64,24 @@ def fetch_nav(code, retries=2):
             else:
                 return None, None, None
     return None, None, None
+
+
+def fetch_for(rec, code, meta):
+    """按产品登记的来源路由数据源。
+
+    备注 JSON 里带 regCode（产品登记编码）→ 中国理财网（浙银理财等非中银产品）；
+    否则 → 中银理财官网。返回 (净值, 日期, 币种, 错误原因)。
+    """
+    reg_code = str(meta.get("regCode", "") or "").strip()
+    if reg_code:
+        try:
+            import chinawealth_fetch
+        except Exception as e:
+            return None, None, None, "中国理财网模块不可用：%s" % e
+        nv, d, cur = chinawealth_fetch.fetch_nav(code, reg_code)
+        return nv, d, cur, ("" if nv is not None else chinawealth_fetch.last_error())
+    nv, d, cur = fetch_nav(code)
+    return nv, d, cur, ("" if nv is not None else "中银理财官网未查到该产品净值")
 
 
 def parse_meta(raw):
@@ -104,9 +126,10 @@ def run(verbose=True):
         if not code:
             results.append({"name": name, "status": "skip", "msg": "未登记净值代码"})
             continue
-        nv, nvdate, cur = fetch_nav(code)
+        nv, nvdate, cur, err = fetch_for(rec, code, meta)
         if nv is None:
-            results.append({"name": name, "status": "fail", "code": code, "msg": "未取到净值"})
+            results.append({"name": name, "status": "fail", "code": code,
+                            "msg": "未取到净值" + ("：" + err if err else "")})
             continue
 
         # 先保存旧净值用于留痕，再覆盖（修复参考实现中"新值→新值"的缺陷）

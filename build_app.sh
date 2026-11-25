@@ -21,7 +21,7 @@ if [ ! -x "$DIR/.venv/bin/python" ]; then
   echo "!! 未检测到 .venv，请先运行 bash install.sh" >&2
   exit 1
 fi
-if ! "$DIR/.venv/bin/python" -c 'import flask, webview, openpyxl' 2>/dev/null; then
+if ! "$DIR/.venv/bin/python" -c 'import flask, webview, openpyxl, Crypto' 2>/dev/null; then
   echo "!! 依赖不全，请先运行 bash install.sh" >&2
   exit 1
 fi
