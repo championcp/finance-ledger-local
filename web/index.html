@@ -180,12 +180,14 @@ tr.rowclick.open{background:#eef4ff}
 <div class="mask" id="rateMask">
   <div class="modal">
     <h3>汇率设置</h3>
-    <div class="hint" style="margin-bottom:12px">用于把美元、港币资产折算成人民币统计。请按实时汇率填写，保存后自动更新总览与留痕。</div>
+    <div class="hint" style="margin-bottom:12px">用于把美元、港币资产折算成人民币统计。点「自动获取」抓取招商银行现汇买入价，也可手动修改；保存后自动更新总览与留痕。</div>
     <form id="rateForm" class="form-grid">
-      <div class="field"><label>美元 → 人民币</label><input name="usd" type="number" step="0.0001" placeholder="如 7.25"></div>
-      <div class="field"><label>港币 → 人民币</label><input name="hkd" type="number" step="0.0001" placeholder="如 0.93"></div>
+      <div class="field"><label>美元 → 人民币</label><input name="usd" type="number" step="0.0001" placeholder="点自动获取"></div>
+      <div class="field"><label>港币 → 人民币</label><input name="hkd" type="number" step="0.0001" placeholder="点自动获取"></div>
     </form>
+    <div class="hint" id="rateMeta" style="margin:8px 0 4px"></div>
     <div class="acts">
+      <button class="btn ghost" id="rateAuto">⟳ 自动获取最新汇率</button>
       <button class="btn ghost" id="rateCancel">取消</button>
       <button class="btn primary" id="rateSave">保存汇率</button>
     </div>
@@ -215,7 +217,8 @@ tr.rowclick.open{background:#eef4ff}
       }
       setInterval(tick,4000);
     },
-    refreshNav:function(){ return post('/refresh-nav',{}); }
+    refreshNav:function(){ return post('/refresh-nav',{}); },
+    refreshRate:function(){ return post('/refresh-rate',{}); }
   };
 })();
 </script>
@@ -236,7 +239,8 @@ var F = {
   tDate:'日期', tType:'类型', tAsset:'关联资产', tAmount:'金额', tNote:'备注',
   sDate:'日期', sAsset:'资产名称', sValue:'市值', sNote:'备注', sCurrency:'货币种类',
   uTime:'时间', uTarget:'操作对象', uAction:'动作', uDetail:'变更详情', uWho:'操作人',
-  rCurrency:'币种', rRate:'兑人民币汇率', rUpdate:'更新日期'
+  rCurrency:'币种', rRate:'兑人民币汇率', rUpdate:'更新日期',
+  rSource:'数据来源', rQuoteTime:'牌价时间'
 };
 
 var LIAB_CATS = ['房贷','车贷','信用卡欠款'];
@@ -384,15 +388,40 @@ function saveRate(currency, rateVal){
     ? updateRecordIn(DB_RATE, rid(hit), pv, '汇率设置/'+currency, currency+' 汇率 '+num(hit[F.rRate])+' → '+rateVal)
     : addRecordTo(DB_RATE, pv, '汇率设置/'+currency, '设置 '+currency+' 汇率 '+rateVal);
 }
+function rateMetaText(){
+  var usd=STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)==='美元'; })[0];
+  if(!usd) return '尚未获取汇率，点「自动获取」从招商银行牌价抓取。';
+  var src=txtOf(usd,F.rSource), qt=txtOf(usd,F.rQuoteTime), up=d10(usd[F.rUpdate]);
+  return '来源：'+(src||'手动设置')+(qt?' · 牌价时间 '+qt:'')+(up?' · 更新于 '+up:'');
+}
 function openRate(){
   var f=document.getElementById('rateForm');
   var usd=STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)==='美元'; })[0];
   var hkd=STORE.rate.filter(function(r){ return selOf(r,F.rCurrency)==='港币'; })[0];
   f.elements.namedItem('usd').value = usd ? num(usd[F.rRate]) : DEFAULT_RATE['美元'];
   f.elements.namedItem('hkd').value = hkd ? num(hkd[F.rRate]) : DEFAULT_RATE['港币'];
+  document.getElementById('rateMeta').textContent=rateMetaText();
   document.getElementById('rateMask').classList.add('show');
 }
 function closeRate(){ document.getElementById('rateMask').classList.remove('show'); }
+/* 自动获取：抓招行牌价 → 写库 → 刷新表格与弹窗输入框 */
+function autoRate(){
+  var btn=document.getElementById('rateAuto'), old=btn.textContent;
+  btn.textContent='抓取中…'; btn.disabled=true;
+  db.refreshRate().then(function(r){
+    btn.textContent=old; btn.disabled=false;
+    if(!r.ok){ alert('汇率抓取失败：'+(r.msg||'请确认本机服务正在运行')); return; }
+    return loadAll().then(function(){
+      refreshAll();
+      var f=document.getElementById('rateForm');
+      if(r.rates['美元']) f.elements.namedItem('usd').value=r.rates['美元'];
+      if(r.rates['港币']) f.elements.namedItem('hkd').value=r.rates['港币'];
+      document.getElementById('rateMeta').textContent=
+        '来源：'+(r.source||'自动抓取')+(r.time?' · 牌价时间 '+r.time:'')+' · 抓取于 '+(r.at||'');
+      setSync(true,'汇率已更新 · '+r.source);
+    });
+  }).catch(function(){ btn.textContent=old; btn.disabled=false; setSync(false,'汇率抓取失败'); });
+}
 function saveRates(){
   var f=document.getElementById('rateForm');
   var usd=num(f.elements.namedItem('usd').value);
@@ -820,6 +849,7 @@ function bindEvents(){
       .catch(function(){ exb.textContent=old; exb.disabled=false; alert('导出失败，请确认本机服务正在运行'); });
   };
   document.getElementById('rateBtn').onclick=openRate;
+  document.getElementById('rateAuto').onclick=autoRate;
   document.getElementById('rateCancel').onclick=closeRate;
   document.getElementById('rateSave').onclick=saveRates;
   document.getElementById('rateMask').addEventListener('click',function(e){ if(e.target===this) closeRate(); });
@@ -939,8 +969,13 @@ function init(){
   if(!db){ setSync(false,'只读预览（未连接数据源）'); refreshAll(); return; }
   setSync(true,'已连接 · 同步中');
   db.onUpdated(function(){ loadAll().then(refreshAll); });
-  loadAll().then(function(){ refreshAll(); setSync(true,'已同步 · '+STORE.assets.length+' 项'); })
-    .catch(function(){ setSync(false,'加载失败，请刷新'); });
+  loadAll().then(function(){
+    refreshAll(); setSync(true,'已同步 · '+STORE.assets.length+' 项');
+    /* 启动兜底：若从未获取过汇率则自动抓一次；桌面 App 已在启动时同步过则跳过 */
+    if(!STORE.rate.some(function(r){ return r[F.rRate]; })){
+      db.refreshRate().then(function(r){ if(r.ok){ loadAll().then(refreshAll); } });
+    }
+  }).catch(function(){ setSync(false,'加载失败，请刷新'); });
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
 else init();
