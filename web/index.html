@@ -145,7 +145,7 @@ tr.rowclick.open{background:#eef4ff}
     </div>
     <form id="assetForm" class="form-grid" style="display:none;margin-bottom:14px;padding:14px;background:#fafbfc;border-radius:10px"></form>
     <div class="scroll"><table id="assetTable"><thead><tr>
-      <th>名称 / 产品</th><th>分类</th><th>币种</th><th>购买日</th><th class="num">投入本金</th><th class="num">份额</th><th class="num">最新净值</th><th class="num">当前金额</th><th class="num">折合¥</th><th class="num">收益(¥)</th><th>到期日</th><th>操作</th>
+      <th>名称 / 产品</th><th>分类</th><th>币种</th><th>购买日</th><th class="num">投入本金</th><th class="num">份额</th><th class="num">最新净值</th><th class="num">当前金额</th><th class="num">折合¥</th><th class="num" title="收益 = 当前金额 + 已卖出/已落袋 − 投入本金 − 追加投入">收益(¥) ⓘ</th><th>到期日</th><th>操作</th>
     </tr></thead><tbody></tbody></table></div>
   </div>
 
@@ -162,7 +162,7 @@ tr.rowclick.open{background:#eef4ff}
 <div class="mask" id="txnMask">
   <div class="modal">
     <h3>记一笔 · <span id="txnAssetName"></span></h3>
-    <div class="hint" style="margin-bottom:12px">选择类型并填金额，系统会自动更新这笔的当前金额，并记入流水与留痕。</div>
+    <div class="hint" style="margin-bottom:12px">只记一笔流水并留痕，不改动份额和市值。卖出/利息等已落袋的钱会自动计入收益；份额与市值请在「改」里按银行 App 最新值更新。</div>
     <form id="txnForm" class="form-grid"></form>
     <div class="acts">
       <button class="btn ghost" id="txnCancel">取消</button>
@@ -257,6 +257,18 @@ var STATUSES = ['持有中','已到期','已赎回'];
 var CURRENCIES = ['人民币','美元','港币'];
 var CUR_SYM = {'人民币':'¥', '美元':'$', '港币':'HK$'};
 var TXN_DIR = {'利息':1,'分红':1,'存入':1,'转入':1,'买入':1,'卖出':-1,'取出':-1,'转出':-1,'费用':-1};
+/* 现金流口径：份额/市值由用户登记最新值，记一笔只记流水。
+   卖出/取出/转出/利息/分红 = 已落袋的钱（加进收益）；
+   买入/存入/转入/费用 = 追加投入（加进成本）。 */
+var TXN_CASH_IN  = {'卖出':1,'取出':1,'转出':1,'利息':1,'分红':1};
+var TXN_CASH_OUT = {'买入':1,'存入':1,'转入':1,'费用':1};
+function cashSum(assetName, typeMap){
+  return STORE.txn.filter(function(r){
+    return txtOf(r,F.tAsset)===assetName && typeMap[selOf(r,F.tType)];
+  }).reduce(function(s,r){ return s+num(r[F.tAmount]); },0);
+}
+function cashIn(assetName){ return cashSum(assetName, TXN_CASH_IN); }
+function cashOut(assetName){ return cashSum(assetName, TXN_CASH_OUT); }
 
 var db = null;
 var STORE = { assets:[], txn:[], snapshot:[], audit:[], rate:[] };
@@ -644,7 +656,9 @@ function renderMainTable(){
     var cur=selOf(r,F.aCurrency)||'人民币';
     var cnyMV=toCNY(mv, cur);
     var isDebt=isLiab(selOf(r,F.aCat));
-    var gain=cnyMV-toCNY(principal, cur);
+    /* 收益 = 当前市值 + 已落袋现金 − 累计投入（都按原币再折¥，避免先折后加的误差） */
+    var cashed=cashIn(name), invested=principal+cashOut(name);
+    var gain=toCNY(mv+cashed-invested, cur);
     var gainTxt = isDebt ? '—' : ((gain>=0?'+':'-')+money(Math.abs(gain)));
     var gainCls = gain>0?'money-up':(gain<0?'money-down':'');
     var open = EXPANDED===id;
@@ -798,10 +812,11 @@ function closeTxn(){ document.getElementById('txnMask').classList.remove('show')
 function updateDirHint(){
   var form=document.getElementById('txnForm');
   var t=form.elements.namedItem('tType').value;
-  var dir=TXN_DIR[t];
-  var word = dir>0 ? '增加' : (dir<0 ? '减少' : '不自动改变（仅记流水）');
-  var shareHint = (t==='买入'||t==='卖出') ? '；有份额的产品会按净值同步调整份额。' : '。';
-  document.getElementById('txnDirHint').textContent='当前金额将'+word+shareHint;
+  var inCash = TXN_CASH_IN[t], outCash = TXN_CASH_OUT[t];
+  var hint = inCash ? '这笔钱视为已落袋，会自动计入收益。'
+           : (outCash ? '这笔钱视为追加投入，会自动计入成本。'
+           : '仅记流水，不影响收益。');
+  document.getElementById('txnDirHint').textContent=hint+' 份额/市值请点「改」按银行 App 的最新值更新。';
 }
 function saveTxn(){
   var form=document.getElementById('txnForm');
@@ -813,14 +828,13 @@ function saveTxn(){
   if(!rec) return;
   var name=selOf(rec,F.aName);
   var cur=selOf(rec,F.aCurrency)||'人民币';
-  var type=g('tType'), dir=TXN_DIR[type]||0;
-  var oldMv=num(rec[F.aMarket]);
-  var newMv=oldMv + dir*amt;
-  if(newMv<0) newMv=0;
+  var type=g('tType');
   var date=g('tDate')||todayStr();
   var note=g('tNote').trim();
   var chain=Promise.resolve();
 
+  /* 记一笔只记流水：份额/市值由用户按银行 App 最新值自己维护，
+     系统不据此反推份额、不二次扣减市值或本金；收益由流水现金流自动计算。 */
   var pvT={};
   pvT[F.tDate]={date:date};
   pvT[F.tType]={select:type};
@@ -829,34 +843,11 @@ function saveTxn(){
   pvT[F.tNote]={text:note};
   chain=chain.then(function(){ return addRecordTo(DB_TXN,pvT,'流水/'+name,type+' '+fmtMoney(amt,cur)); });
 
-  if(dir!==0){
-    var pvA={};
-    pvA[F.aMarket]={number:newMv};
-    pvA[F.aUpdate]={date:date};
-    var shareDetail='';
-    /* 买入/卖出按「金额 ÷ 净值」同步增减份额，并用份额×净值重算市值，
-       否则下次刷新净值会用旧份额把市值写回去（记了跟没记一样）。 */
-    if(type==='买入'||type==='卖出'){
-      var raw=txtOf(rec,F.aNote), no=null;
-      try{ no=JSON.parse(raw); if(!no||typeof no!=='object'||Array.isArray(no)) no=null; }catch(e){}
-      var sh=no?num(no.share):0, nv=no?num(no.nav):0;
-      if(sh>0 && nv>0){
-        var ns=Math.round(Math.max(0, sh + dir*(amt/nv))*10000)/10000;
-        no.share=String(ns);
-        newMv=Math.round(ns*nv*100)/100;
-        pvA[F.aMarket]={number:newMv};
-        pvA[F.aNote]={text:JSON.stringify(no)};
-        shareDetail='，份额 '+sh+' → '+ns;
-      }
-    }
-    var detail='记一笔('+type+') '+fmtMoney(oldMv,cur)+' → '+fmtMoney(newMv,cur)+shareDetail;
-    chain=chain.then(function(){ return updateRecordIn(DB_ASSETS,targetId,pvA,'资产/'+name,detail); });
-    chain=chain.then(function(){ return snapshot(name,newMv,cur); });
-  }
   chain.then(function(){
     EXPANDED=targetId;   /* 自动展开该资产明细，让刚记的流水立刻可见 */
     afterWrite();
-    toast('已记一笔：'+type+' '+fmtMoney(amt,cur)+' · 当前金额 '+fmtMoney(newMv,cur)+'，明细已展开',true);
+    var tagged = TXN_CASH_IN[type] ? '（已计入收益）' : (TXN_CASH_OUT[type] ? '（已计入成本）' : '');
+    toast('已记一笔：'+type+' '+fmtMoney(amt,cur)+tagged+'，明细已展开',true);
     setTimeout(function(){
       var row=document.querySelector('tr.rowclick[data-row="'+targetId+'"]');
       if(row) row.scrollIntoView({behavior:'smooth',block:'center'});

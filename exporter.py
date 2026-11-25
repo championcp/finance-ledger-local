@@ -26,6 +26,15 @@ HEADERS = [
     "投入本金(折合¥)", "当前金额(折合¥)", "收益(¥)", "到期日", "更新日期", "状态", "备注",
 ]
 
+# 收益口径：已落袋（卖出/取出/转出/利息/分红）计入收益；追加投入（买入/存入/转入/费用）计入成本。
+CASH_IN = {"卖出", "取出", "转出", "利息", "分红"}
+CASH_OUT = {"买入", "存入", "转入", "费用"}
+
+
+def _cash_sum(txn, name, types):
+    return sum(_num(r.get("金额")) for r in txn
+               if (r.get("关联资产") or "") == name and (r.get("类型") or "") in types)
+
 
 def _num(v):
     try:
@@ -71,6 +80,7 @@ def build_workbook():
     """返回一个 openpyxl Workbook（内存中），不落盘。"""
     rates = _rates()
     assets = storage.query("assets")
+    txn = storage.query("txn")
 
     wb = Workbook()
     ws = wb.active
@@ -93,7 +103,7 @@ def build_workbook():
         cell.border = border
     ws.freeze_panes = "A2"
 
-    tot_principal = tot_market = 0.0
+    tot_principal = tot_market = tot_gain = 0.0
     row = 2
     for rec in assets:
         meta, memo = _meta(rec.get("备注", ""))
@@ -106,10 +116,13 @@ def build_workbook():
         cny_p = principal * rate
         cny_m = market * rate
         is_liab = cat in LIAB_CATS
-        gain = "—" if is_liab else round(cny_m - cny_p, 2)
+        cashed = _cash_sum(txn, name, CASH_IN)      # 已落袋（原币）
+        invested = _cash_sum(txn, name, CASH_OUT)   # 追加投入（原币）
+        gain = "—" if is_liab else round((market + cashed - principal - invested) * rate, 2)
         if not is_liab:
             tot_principal += cny_p
             tot_market += cny_m
+            tot_gain += gain
 
         values = [
             name, rec.get("产品代码型号", ""), cat, rec.get("归属人", ""), rec.get("机构", ""),
@@ -134,7 +147,7 @@ def build_workbook():
     # 合计行（仅资产类，负债不计入；收益红涨绿跌）
     ws.append([
         "合计", "", "", "", "", "", "", "", "", "", "", "", "",
-        round(tot_principal, 2), round(tot_market, 2), round(tot_market - tot_principal, 2),
+        round(tot_principal, 2), round(tot_market, 2), round(tot_gain, 2),
         "", "", "", "",
     ])
     for c in range(1, len(HEADERS) + 1):
@@ -163,7 +176,7 @@ def build_workbook():
         ("数据来源", "本机家庭理财台账 · 资产台账（仅登记明细）"),
         ("记录数", len(assets)),
         ("折合说明", "投入本金/当前金额(折合¥) 按汇率表折算；人民币汇率=1"),
-        ("收益说明", "收益=当前金额-投入本金（折合人民币）；负债类显示 —"),
+        ("收益说明", "收益=(当前金额+已卖出/已落袋-投入本金-追加投入)×汇率；份额市值按最新登记值，记一笔不重复扣减；负债类显示 —"),
         ("颜色说明", "收益红色为浮动盈利，绿色为浮动亏损（中国习惯）"),
         ("隐私提醒", "本文件含真实资产信息，请勿上传公开网盘或代码仓库"),
     ]
