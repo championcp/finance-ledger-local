@@ -686,13 +686,14 @@ function buildAssetForm(){
   document.getElementById('assetForm').innerHTML=
     '<div style="grid-column:1/-1;background:#f0f7ff;border:1px solid #d5e5ff;border-radius:8px;padding:10px 12px;font-size:12px;color:#1e40af;line-height:1.7">'+
       '<b>净值自动跟踪</b>：这些产品你能从银行 App 查到净值，登记后由本机任务自动抓取、按份额算出市值。带 * 的建议填，没填不影响保存。<br>'+
-      '① 净值代码 = 管理人官网的份额代码（如中银理财 <code>QQGPJUSDRKI</code>），不知道就填销售代码也行；② 份额从持仓详情看；③ 净值每日更新即可，市值是系统算的，不用你算。'+
+      '① 净值代码 = 份额/销售代码（中银理财如 <code>QQGPJUSDRKI</code>，浙银理财如 <code>ZYJXG0006A</code>）；浙银理财等非中银产品还要填「产品登记编码」（Z 开头，产品说明书/理财App上可查，如 <code>Z7011825000176</code>），否则无法自动抓净值；② 份额从持仓详情看；③ 净值每日更新即可，市值系统自动算。'+
     '</div>'+
     field('名称 *','<input name="aName" required placeholder="如：中银理财美元日日开">')+
     field('分类 *',selHTML('aCat',CATS,'银行理财'))+
     field('机构','<input name="aOrg" placeholder="如：招商银行">')+
     field('货币种类 *',selHTML('aCurrency',CURRENCIES,'人民币'))+
     field('① 净值代码 *','<input name="aTrack" placeholder="如 QQGPJUSDRKI / ZYD3202A">')+
+    field('产品登记编码','<input name="aRegCode" placeholder="浙银理财等非中银产品填，如 Z7011825000176">')+
     field('② 持有份额 *','<input name="aShare" type="number" step="0.0001" placeholder="如 47998.65">')+
     field('③ 最新净值','<input name="aNav" type="number" step="0.000001" placeholder="如 1.110792">')+
     field('净值日期','<input name="aNavDate" type="date">')+
@@ -722,10 +723,12 @@ function assetPV(form){
   var g=function(n){var e=form.elements.namedItem(n);return e?e.value:'';};
   var pv={};
   var track=g('aTrack').trim(), share=g('aShare').trim(), nav=g('aNav').trim(), navDate=g('aNavDate').trim();
+  var regCode=g('aRegCode')?g('aRegCode').trim():'';
   var manualMv=g('aMarket').trim();
   var mv = manualMv==='' ? (num(share)*num(nav)) : num(manualMv);
   var meta={ memo:g('aNote').trim(), share:share, nav:nav, navDate:navDate, track:track };
-  var noteTxt = (share||nav||navDate||track) ? JSON.stringify(meta) : meta.memo;
+  if(regCode) meta.regCode=regCode;
+  var noteTxt = (share||nav||navDate||track||regCode) ? JSON.stringify(meta) : meta.memo;
   pv[F.aName]={text:g('aName').trim()};
   pv[F.aCode]={text:track};
   pv[F.aCat]={select:g('aCat')};
@@ -748,8 +751,9 @@ var TRACK_ALIAS = {'ZYD3202A':'QQGPJUSDRKI'};
 function navMeta(rec){
   var raw=txtOf(rec,F.aNote);
   try{ var o=JSON.parse(raw); if(o&&typeof o==='object') return {
-    memo:o.memo||'', share:o.share||'', nav:o.nav||'', navDate:o.navDate||'', track:o.track||'' }; }catch(e){}
-  return {memo:raw, share:'', nav:'', navDate:'', track:''};
+    memo:o.memo||'', share:o.share||'', nav:o.nav||'', navDate:o.navDate||'',
+    track:o.track||'', regCode:o.regCode||'' }; }catch(e){}
+  return {memo:raw, share:'', nav:'', navDate:'', track:'', regCode:''};
 }
 function navTrack(rec){
   var m=navMeta(rec), code=txtOf(rec,F.aCode);
@@ -908,6 +912,7 @@ function bindEvents(){
       f.elements.namedItem('aOrg').value=txtOf(rec,F.aOrg);
       f.elements.namedItem('aCurrency').value=selOf(rec,F.aCurrency)||'人民币';
       f.elements.namedItem('aTrack').value=navTrack(rec);
+      if(f.elements.namedItem('aRegCode')) f.elements.namedItem('aRegCode').value=meta.regCode||'';
       f.elements.namedItem('aShare').value=meta.share;
       f.elements.namedItem('aNav').value=meta.nav;
       f.elements.namedItem('aNavDate').value=meta.navDate;
